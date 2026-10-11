@@ -36,6 +36,7 @@ export type QuickSaleDraftSessionInput = {
   holdInvoiceId: string | null;
   staffNames: Record<string, string>;
   lifecycle?: QuickSaleSessionLifecycle;
+  checkoutAttemptId?: string | null;
 };
 
 export function buildQuickSaleSessionSnapshot(
@@ -44,6 +45,7 @@ export function buildQuickSaleSessionSnapshot(
   return {
     v: 2,
     lifecycle: input.lifecycle ?? 'active_draft',
+    checkoutAttemptId: input.checkoutAttemptId ?? null,
     customer: input.customer,
     appointmentId: input.appointmentId,
     tab: input.tab,
@@ -86,7 +88,7 @@ export const QUICK_SALE_CHECKOUT_INTERRUPTED_ERROR =
   'A previous checkout may not have finished. Verify Billing before retrying.';
 
 export const QUICK_SALE_CHECKOUT_FAILED_ERROR =
-  'Sale could not be completed. Nothing was charged or saved. Please try again.';
+  'Sale could not be completed. Check Billing before submitting again.';
 
 export function hasQuickSaleTransactionContent(input: {
   lines: BasketLine[];

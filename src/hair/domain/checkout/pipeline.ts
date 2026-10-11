@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
   fyhAppointments,
@@ -35,6 +35,8 @@ export type CheckoutFromBasketInput = {
   allowUnpaid?: boolean;
   source?: 'quick_sale' | 'appointment';
   appointmentId?: string;
+  /** Durable client attempt id for idempotent checkout. */
+  checkoutAttemptKey?: string | null;
   ctx?: TenantContext | null;
 };
 
@@ -97,6 +99,32 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
   const source = input.source ?? 'quick_sale';
   if (source === 'appointment' && !input.appointmentId) {
     throw new Error('appointmentId is required for appointment checkout');
+  }
+
+  const attemptKey = input.checkoutAttemptKey?.trim() || null;
+  if (attemptKey) {
+    const [existing] = await hairDb
+      .select({ id: fyhInvoices.id })
+      .from(fyhInvoices)
+      .where(
+        and(
+          orgFilter(fyhInvoices.organizationId, ctx),
+          eq(fyhInvoices.checkoutAttemptKey, attemptKey),
+          isNull(fyhInvoices.voidedAt),
+        ),
+      )
+      .limit(1);
+    if (existing) {
+      const priced = priceBasket(await enrichBasketWithRedemptions(input.basket, ctx));
+      const paySum = paymentsFromBasket(input.basket).reduce((s, p) => s + p.amountPaise, 0);
+      return {
+        invoiceId: existing.id,
+        pricedGrandTotalPaise: priced.totals.grandTotalPaise,
+        amountPaidPaise: Math.min(paySum, priced.totals.grandTotalPaise),
+        advancePaise: 0,
+        receivablePaise: 0,
+      };
+    }
   }
 
   const enriched = await enrichBasketWithRedemptions(input.basket, ctx);
@@ -224,6 +252,7 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
       paidAt: status === 'paid' ? new Date() : null,
       notes: input.notes ?? null,
       posDraft: null,
+      checkoutAttemptKey: attemptKey,
     };
 
     let inv;
@@ -444,7 +473,7 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
         .limit(1);
       if (invRow) {
         const { enqueuePostCheckoutNotifications } = await import('@/src/hair/services/notifications');
-        await enqueuePostCheckoutNotifications({
+        void enqueuePostCheckoutNotifications({
           customerId: enriched.customerId,
           customerName: customer.fullName,
           phone: customer.phone,
@@ -452,6 +481,8 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
           invoiceNumber: invRow.invoiceNumber,
           publicAccessToken: invRow.publicAccessToken,
           grandTotalPaise: priced.totals.grandTotalPaise,
+        }).catch(() => {
+          // Must not block checkout response — WhatsApp/template IO can hang.
         });
       }
     }

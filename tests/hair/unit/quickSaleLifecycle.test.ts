@@ -8,6 +8,7 @@ import {
   isRestorableQuickSaleSession,
   normalizeRestoredQuickSaleSession,
   QUICK_SALE_CHECKOUT_AMBIGUOUS_ERROR,
+  QUICK_SALE_CHECKOUT_FAILED_ERROR,
   QUICK_SALE_CHECKOUT_INTERRUPTED_ERROR,
 } from '@/src/hair/lib/quickSaleLifecycle';
 import type { QuickSaleSessionSnapshot } from '@/src/hair/lib/quickSaleSession';
@@ -103,6 +104,8 @@ test('v2 snapshot builder defaults lifecycle to active_draft', () => {
 test('checkout error constants are actionable', () => {
   assert.match(QUICK_SALE_CHECKOUT_AMBIGUOUS_ERROR, /Verify Billing/i);
   assert.match(QUICK_SALE_CHECKOUT_INTERRUPTED_ERROR, /Verify Billing/i);
+  assert.match(QUICK_SALE_CHECKOUT_FAILED_ERROR, /Check Billing/i);
+  assert.doesNotMatch(QUICK_SALE_CHECKOUT_FAILED_ERROR, /Nothing was charged/i);
 });
 
 test('QuickSaleShell uses dedicated checkoutSubmitting — not shared pending on Confirm', () => {

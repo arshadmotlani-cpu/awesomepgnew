@@ -4,7 +4,11 @@ import { revalidatePath } from 'next/cache';
 import { requireFyhPermission } from '@/src/workforce/permissions/guards';
 import { createQuickCustomerFromForm } from '@/src/hair/actions/quickSaleCustomer';
 import type { Basket } from '@/src/hair/domain/basket/types';
-import { enrichBasketWithRedemptions, checkoutFromBasket } from '@/src/hair/domain/checkout/pipeline';
+import { enrichBasketWithRedemptions } from '@/src/hair/domain/checkout/pipeline';
+import {
+  executeBasketCheckout,
+  lookupBasketCheckoutByAttemptKey,
+} from '@/src/hair/domain/checkout/operation';
 import {
   buildPublicInvoicePrintHtml,
   getInvoiceDetail,
@@ -83,41 +87,69 @@ export async function completeQuickSaleAction(input: {
   holdInvoiceId?: string | null;
   source?: 'quick_sale' | 'appointment';
   appointmentId?: string;
+  checkoutAttemptId?: string | null;
 }): Promise<
-  QuickSaleActionState & { advancePaise?: number; invoiceNumber?: string }
+  QuickSaleActionState & { advancePaise?: number; invoiceNumber?: string; outcome?: string }
 > {
   try {
     await requireFyhPermission({ permission: 'quick_sale.sale.complete', scope: 'org' });
     const ctx = await getTenantContextForAction();
     const enriched = await enrichBasketWithRedemptions(input.basket);
-    const result = await checkoutFromBasket({
+    const result = await executeBasketCheckout({
       basket: enriched,
       holdInvoiceId: input.holdInvoiceId,
       source: input.source,
       appointmentId: input.appointmentId,
+      attemptKey: input.checkoutAttemptId,
       ctx,
     });
+
+    if (result.outcome !== 'committed' && result.outcome !== 'already_committed') {
+      return {
+        error: result.error ?? 'Could not complete sale',
+        outcome: result.outcome,
+      };
+    }
+    if (!result.invoiceId) {
+      return { error: 'Checkout did not return an invoice. Verify Billing before retrying.', outcome: 'ambiguous' };
+    }
+
     revalidatePath('/billing');
     revalidatePath('/dashboard/revenue');
     revalidatePath('/quick-sale');
     if (input.source === 'appointment' || input.appointmentId) {
       revalidatePath('/appointments');
     }
-    let invoiceNumber: string | undefined;
-    try {
-      const detail = await getInvoiceDetail(result.invoiceId, ctx);
-      invoiceNumber = detail?.invoice.invoiceNumber;
-    } catch {
-      // Invoice is committed; invoice number is best-effort.
-    }
     return {
       success: 'Sale complete',
       invoiceId: result.invoiceId,
-      invoiceNumber,
       advancePaise: result.advancePaise,
+      outcome: result.outcome,
     };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Could not complete sale' };
+  }
+}
+
+export async function recoverQuickSaleCheckoutAction(
+  checkoutAttemptId: string,
+): Promise<QuickSaleActionState & { outcome?: string }> {
+  try {
+    await requireFyhPermission({ permission: 'quick_sale.sale.complete', scope: 'org' });
+    const ctx = await getTenantContextForAction();
+    const found = await lookupBasketCheckoutByAttemptKey(checkoutAttemptId, ctx);
+    if (!found) {
+      return { error: 'No saved sale found for this attempt. You may retry safely with a new sale.' };
+    }
+    if (found.invoiceId && (found.outcome === 'committed' || found.outcome === 'already_committed')) {
+      return { success: 'Sale complete', invoiceId: found.invoiceId, outcome: found.outcome };
+    }
+    return {
+      error: found.error ?? 'Checkout outcome uncertain — verify Billing before retrying.',
+      outcome: found.outcome,
+    };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Could not recover checkout' };
   }
 }
 

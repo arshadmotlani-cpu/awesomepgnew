@@ -15,7 +15,12 @@ import {
   listStaffForPosRosterAction,
   loadQuickSaleHoldAction,
   previewQuickSaleTotalsAction,
+  recoverQuickSaleCheckoutAction,
 } from '@/src/hair/actions/quickSale';
+import {
+  newQuickSaleCheckoutAttemptId,
+  raceQuickSaleCheckout,
+} from '@/src/hair/lib/quickSaleCheckoutClient';
 import { QuickSaleCheckoutProcessing } from '@/src/hair/components/quick-sale/QuickSaleProcessingOverlay';
 import { QuickSaleSuccessDialog } from '@/src/hair/components/quick-sale/QuickSaleSuccessDialog';
 import { QuickSaleValidationToasts } from '@/src/hair/components/quick-sale/QuickSaleValidationToasts';
@@ -128,6 +133,7 @@ export function QuickSaleShell({
   const [staffErrorLineIds, setStaffErrorLineIds] = useState<string[]>([]);
   const catalogSearchRef = useRef<HTMLInputElement>(null);
   const checkoutSubmittingRef = useRef(false);
+  const checkoutAttemptIdRef = useRef<string | null>(null);
   const saleCompletedRef = useRef(false);
 
   const workspaceLocked = checkoutSubmitting || holdSubmitting;
@@ -229,6 +235,9 @@ export function QuickSaleShell({
       setStep('sale');
       if (interruptedCheckout) {
         setError(QUICK_SALE_CHECKOUT_INTERRUPTED_ERROR);
+        if (snapshot.checkoutAttemptId) {
+          checkoutAttemptIdRef.current = snapshot.checkoutAttemptId;
+        }
       }
     }
     setSessionHydrated(true);
@@ -417,21 +426,33 @@ export function QuickSaleShell({
     setError(null);
     setValidationToasts([]);
 
+    const checkoutAttemptId =
+      checkoutAttemptIdRef.current ?? newQuickSaleCheckoutAttemptId();
+    checkoutAttemptIdRef.current = checkoutAttemptId;
+
     const sessionSnapshot = buildCurrentSessionSnapshot();
     if (sessionSnapshot) {
       markQuickSaleCheckoutPending({
         ...sessionSnapshot,
         lifecycle: 'checkout_pending',
+        checkoutAttemptId,
       });
     }
 
     try {
-      const res = await completeQuickSaleAction({
-        basket: { ...basket, membershipDiscountPaise },
-        holdInvoiceId,
-        source: appointmentId ? 'appointment' : 'quick_sale',
-        appointmentId: appointmentId ?? undefined,
-      });
+      const raced = await raceQuickSaleCheckout(
+        completeQuickSaleAction({
+          basket: { ...basket, membershipDiscountPaise },
+          holdInvoiceId,
+          source: appointmentId ? 'appointment' : 'quick_sale',
+          appointmentId: appointmentId ?? undefined,
+          checkoutAttemptId,
+        }),
+      );
+      const res =
+        raced.kind === 'timeout'
+          ? await recoverQuickSaleCheckoutAction(checkoutAttemptId)
+          : raced.value;
       if (res.error) {
         if (sessionSnapshot) {
           revertCheckoutPendingToSessionDraft(sessionSnapshot);
@@ -442,6 +463,7 @@ export function QuickSaleShell({
             : res.error,
         );
       } else if (res.invoiceId) {
+        checkoutAttemptIdRef.current = null;
         finalizeSuccess({ invoiceId: res.invoiceId });
       } else {
         if (sessionSnapshot) {
@@ -532,6 +554,20 @@ export function QuickSaleShell({
     setError(null);
     setStep('done');
   };
+
+  useEffect(() => {
+    if (!sessionHydrated) return;
+    const attemptId = checkoutAttemptIdRef.current;
+    if (!attemptId) return;
+    let cancelled = false;
+    void recoverQuickSaleCheckoutAction(attemptId).then((res) => {
+      if (cancelled || !res.invoiceId) return;
+      finalizeSuccess({ invoiceId: res.invoiceId });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionHydrated]);
 
   const clearSaleState = () => {
     saleCompletedRef.current = false;

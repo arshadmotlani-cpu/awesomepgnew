@@ -33,6 +33,8 @@ type QuickSaleSessionSnapshotV1 = {
 export type QuickSaleSessionSnapshot = {
   v: 2;
   lifecycle: QuickSaleSessionLifecycle;
+  /** Set while checkout is in flight — used to recover after timeout or tab reload. */
+  checkoutAttemptId?: string | null;
   customer: PosCustomerHit;
   appointmentId: string | null;
   tab: QuickSaleTab;

@@ -30,8 +30,8 @@ test('listPackagePlansDetailed accepts optional db parameter', () => {
   assert.match(src, /await db\s*\n\s*\.select\(\)/);
 });
 
-test('completeQuickSaleAction returns invoiceId even when invoice number lookup fails', () => {
+test('completeQuickSaleAction returns invoiceId from basket checkout operation', () => {
   const action = readSrc('src/hair/actions/quickSale.ts');
-  assert.match(action, /Invoice is committed; invoice number is best-effort/);
+  assert.match(action, /executeBasketCheckout/);
   assert.match(action, /invoiceId: result\.invoiceId/);
 });

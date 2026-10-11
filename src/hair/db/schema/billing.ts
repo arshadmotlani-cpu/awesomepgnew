@@ -116,6 +116,8 @@ export const fyhInvoices = pgTable(
       onDelete: 'set null',
     }),
     importRowKey: text('import_row_key'),
+    /** Client checkout attempt id — idempotent Quick Sale / basket checkout. */
+    checkoutAttemptKey: text('checkout_attempt_key'),
     paidAt: timestamp('paid_at', { withTimezone: true }),
     voidedAt: timestamp('voided_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -222,6 +224,32 @@ export const fyhCreditNotes = pgTable(
     index('fyh_credit_notes_customer_idx').on(t.customerId, t.issuedAt),
   ],
 );
+
+export const FYH_CHECKOUT_OPERATION_STATUSES = ['processing', 'committed', 'failed'] as const;
+export type FyhCheckoutOperationStatus = (typeof FYH_CHECKOUT_OPERATION_STATUSES)[number];
+
+export const fyhCheckoutOperations = pgTable(
+  'fyh_checkout_operations',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    organizationId: organizationIdCol(),
+    locationId: locationIdCol(),
+    attemptKey: text('attempt_key').notNull(),
+    kind: text('kind').notNull().default('basket_checkout'),
+    status: text('status').$type<FyhCheckoutOperationStatus>().notNull(),
+    invoiceId: uuid('invoice_id').references(() => fyhInvoices.id, { onDelete: 'set null' }),
+    errorMessage: text('error_message'),
+    correlationId: uuid('correlation_id').notNull().default(sql`gen_random_uuid()`),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    committedAt: timestamp('committed_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('fyh_checkout_operations_org_attempt_uidx').on(t.organizationId, t.attemptKey),
+    index('fyh_checkout_operations_status_created_idx').on(t.status, t.createdAt),
+  ],
+);
+
+export type FyhCheckoutOperation = typeof fyhCheckoutOperations.$inferSelect;
 
 export type FyhInvoice = typeof fyhInvoices.$inferSelect;
 export type NewFyhInvoice = typeof fyhInvoices.$inferInsert;
