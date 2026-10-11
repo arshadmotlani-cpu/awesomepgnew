@@ -32,7 +32,7 @@ export type ExecuteBasketCheckoutParams = CheckoutFromBasketInput & {
 
 async function findInvoiceIdByAttemptKey(
   attemptKey: string,
-  ctx: TenantContext,
+  ctx: TenantContext | null,
 ): Promise<string | null> {
   const key = attemptKey.trim();
   if (!key) return null;
