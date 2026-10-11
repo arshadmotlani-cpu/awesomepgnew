@@ -39,7 +39,6 @@ async function main() {
       status: fyhInvoices.status,
       grandTotalPaise: fyhInvoices.grandTotalPaise,
       amountPaidPaise: fyhInvoices.amountPaidPaise,
-      checkoutAttemptKey: fyhInvoices.checkoutAttemptKey,
       createdAt: fyhInvoices.createdAt,
       customerCode: fyhCustomers.customerCode,
       customerName: fyhCustomers.fullName,

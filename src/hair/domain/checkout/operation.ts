@@ -5,6 +5,7 @@ import { fyhCheckoutOperations, fyhInvoices } from '@/src/hair/db/schema';
 import { orgFilter, locationFilter, tenantWriteDefaults } from '@/src/hair/lib/tenant/filters';
 import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
+import { friendlyHairDbError } from '@/src/hair/lib/friendlyDbError';
 import {
   checkoutFromBasket,
   type CheckoutFromBasketInput,
@@ -168,7 +169,7 @@ export async function executeBasketCheckout(
     }
     return { ...result, outcome: 'committed', correlationId };
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Could not complete sale';
+    const message = friendlyHairDbError(e, correlationId);
     const outcome: BasketCheckoutOutcome =
       message.includes('permission') || message.includes('required') || message.includes('Select')
         ? 'validation_failed'

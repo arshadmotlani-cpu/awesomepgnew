@@ -31,6 +31,7 @@ import {
 } from '@/src/hair/services/quickSaleHold';
 import type { QuickSalePosDraft } from '@/src/hair/db/schema/billing';
 import { getTenantContextForAction } from '@/src/hair/lib/tenant/getTenantContext';
+import { friendlyHairDbError } from '@/src/hair/lib/friendlyDbError';
 
 export type QuickSaleActionState = { error?: string; success?: string; invoiceId?: string };
 
@@ -127,7 +128,7 @@ export async function completeQuickSaleAction(input: {
       outcome: result.outcome,
     };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : 'Could not complete sale' };
+    return { error: friendlyHairDbError(e) };
   }
 }
 
