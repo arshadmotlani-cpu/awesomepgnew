@@ -40,6 +40,9 @@ jobs:
       - name: Lint private blob display
         run: node_modules/.bin/tsx scripts/lint-private-blob-display.ts
 
+      - name: Hair migration journal ↔ SQL files
+        run: node --import tsx --test tests/hair/unit/hairMigrationJournal.test.ts
+
       - name: Deploy typecheck (app, excludes tests)
         run: npm run typecheck:deploy
         env:

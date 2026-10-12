@@ -12,11 +12,20 @@ test('every Hair SQL migration file is registered in meta/_journal.json', () => 
   const sqlFiles = readdirSync(dir)
     .filter((f) => f.endsWith('.sql'))
     .map((f) => f.replace(/\.sql$/, ''));
-  /** Comment-only or applied out-of-band before journal registration. */
-  const manualTracking = new Set([
-    '0050_advance_payment_invoices',
-    '0053_expense_dashboard_categories',
-  ]);
-  const missing = sqlFiles.filter((tag) => !tags.has(tag) && !manualTracking.has(tag));
-  assert.deepEqual(missing, [], `Unregistered Hair migrations: ${missing.join(', ')}`);
+
+  const missingFromJournal = sqlFiles.filter((tag) => !tags.has(tag));
+  assert.deepEqual(
+    missingFromJournal,
+    [],
+    `Unregistered Hair migrations: ${missingFromJournal.join(', ')}`,
+  );
+
+  const missingSqlFiles = journal.entries
+    .map((e) => e.tag)
+    .filter((tag) => !sqlFiles.includes(tag));
+  assert.deepEqual(
+    missingSqlFiles,
+    [],
+    `Journal references missing SQL files (breaks Vercel hair:db:migrate): ${missingSqlFiles.join(', ')}`,
+  );
 });
