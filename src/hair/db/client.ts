@@ -26,7 +26,12 @@ function init(): DrizzleClient {
   const { connectionString, options } = parseDatabaseUrl(url);
   const sql = postgres(connectionString, {
     ...options,
-    connection: { application_name: `hair-${process.env.NODE_ENV ?? 'development'}` },
+    connection: {
+      ...(options.connection ?? {}),
+      application_name: `hair-${process.env.NODE_ENV ?? 'development'}`,
+      // Abort checkout transactions that stop issuing queries (Neon ClientRead zombies).
+      idle_in_transaction_session_timeout: 15_000,
+    },
   });
 
   global.sql = sql;

@@ -446,9 +446,15 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
         }
       }
 
+      // #region agent log
+      fetch('http://127.0.0.1:7773/ingest/341f5f78-8713-4383-a1da-d34d3f990ce7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'629d86'},body:JSON.stringify({sessionId:'629d86',location:'pipeline.ts:applyPaidSideEffects',message:'before paid side effects',data:{invoiceId:inv.id,status},timestamp:Date.now(),hypothesisId:'H-idle-tx',runId:'post-fix'})}).catch(()=>{});
+      // #endregion
       await applyPaidSideEffects(db, inv.id, ctx, {
         packageRedemptionCustomerPackageId: enriched.packageRedemptionCustomerPackageId ?? null,
       });
+      // #region agent log
+      fetch('http://127.0.0.1:7773/ingest/341f5f78-8713-4383-a1da-d34d3f990ce7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'629d86'},body:JSON.stringify({sessionId:'629d86',location:'pipeline.ts:applyPaidSideEffects',message:'after paid side effects',data:{invoiceId:inv.id},timestamp:Date.now(),hypothesisId:'H-idle-tx',runId:'post-fix'})}).catch(()=>{});
+      // #endregion
     }
 
     const opKey = input.checkoutAttemptKey?.trim();
