@@ -62,10 +62,11 @@ test('QuickSaleShell races checkout with client timeout and recovery', () => {
 });
 
 test('stale checkout operations are failed and safe to retry', () => {
-  const op = readSrc('src/hair/domain/checkout/operation.ts');
-  assert.match(op, /isStaleCheckoutOperation/);
-  assert.match(op, /STALE_CHECKOUT_OPERATION_ERROR/);
-  assert.match(op, /claimCheckoutOperationLease/);
+  const claim = readSrc('src/hair/domain/checkout/claimLease.ts');
+  const reconcile = readSrc('src/hair/domain/checkout/reconcileAttempt.ts');
+  assert.match(claim, /markStaleProcessingOperationsFailed/);
+  assert.match(reconcile, /isStaleCheckoutOperation/);
+  assert.match(reconcile, /STALE_CHECKOUT_OPERATION_ERROR/);
 });
 
 test('checkout operation stale window exceeds client timeout', () => {

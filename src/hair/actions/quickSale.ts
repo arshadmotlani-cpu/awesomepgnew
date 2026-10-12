@@ -105,7 +105,10 @@ export async function completeQuickSaleAction(input: {
       ctx,
     });
 
-    if (result.outcome !== 'committed' && result.outcome !== 'already_committed') {
+    if (
+      result.outcome !== 'committed' &&
+      result.outcome !== 'already_committed'
+    ) {
       return {
         error: result.error ?? 'Could not complete sale',
         outcome: result.outcome,
@@ -144,6 +147,14 @@ export async function recoverQuickSaleCheckoutAction(
     }
     if (found.invoiceId && (found.outcome === 'committed' || found.outcome === 'already_committed')) {
       return { success: 'Sale complete', invoiceId: found.invoiceId, outcome: found.outcome };
+    }
+    if (found.outcome === 'reconciliation_required') {
+      return {
+        error:
+          found.error ??
+          'Checkout lost database connection before finishing. Verify Billing before retrying.',
+        outcome: found.outcome,
+      };
     }
     return {
       error: found.error ?? 'Checkout outcome uncertain — verify Billing before retrying.',

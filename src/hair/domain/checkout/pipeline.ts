@@ -27,6 +27,7 @@ import { orgFilter, locationFilter, tenantWriteDefaults } from '@/src/hair/lib/t
 import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { hairCheckoutAttemptKeyColumnReady } from '@/src/hair/lib/checkoutSchemaCapabilities';
+import { fyhCheckoutOperations } from '@/src/hair/db/schema';
 
 export type CheckoutFromBasketInput = {
   basket: Basket;
@@ -38,6 +39,8 @@ export type CheckoutFromBasketInput = {
   appointmentId?: string;
   /** Durable client attempt id for idempotent checkout. */
   checkoutAttemptKey?: string | null;
+  /** Must match fyh_checkout_operations.correlation_id for in-tx journal finalize. */
+  checkoutOperationCorrelationId?: string | null;
   ctx?: TenantContext | null;
 };
 
@@ -446,6 +449,26 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
       await applyPaidSideEffects(db, inv.id, ctx, {
         packageRedemptionCustomerPackageId: enriched.packageRedemptionCustomerPackageId ?? null,
       });
+    }
+
+    const opKey = input.checkoutAttemptKey?.trim();
+    const opCorrelation = input.checkoutOperationCorrelationId?.trim();
+    if (opKey && opCorrelation) {
+      await db
+        .update(fyhCheckoutOperations)
+        .set({
+          status: 'committed',
+          invoiceId: inv.id,
+          committedAt: new Date(),
+          errorMessage: null,
+        })
+        .where(
+          and(
+            orgFilter(fyhCheckoutOperations.organizationId, ctx),
+            eq(fyhCheckoutOperations.attemptKey, opKey),
+            eq(fyhCheckoutOperations.correlationId, opCorrelation),
+          ),
+        );
     }
 
     return inv.id;

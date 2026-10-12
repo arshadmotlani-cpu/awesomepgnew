@@ -16,6 +16,15 @@ test('maps missing checkout_attempt_key (42703) without leaking SQL', () => {
   assert.doesNotMatch(msg, /insert into/);
 });
 
+test('maps CONNECTION_CLOSED to safe checkout message', () => {
+  const msg = friendlyHairDbError(
+    new Error('write CONNECTION_CLOSED ep-billowing-bar-pooler.neon.tech:5432'),
+    'corr-1',
+  );
+  assert.match(msg, /connection was lost/i);
+  assert.doesNotMatch(msg, /ep-billowing-bar/);
+});
+
 test('maps Failed query wrapper to safe checkout message', () => {
   const msg = friendlyHairDbError(new Error('Failed query: insert into "fyh_invoices" (...)'), 'abc');
   assert.match(msg, /Could not save this sale/);

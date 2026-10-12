@@ -1,139 +1,34 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, isNull } from 'drizzle-orm';
-import { hairDb } from '@/src/hair/db/client';
-import { fyhCheckoutOperations, fyhInvoices } from '@/src/hair/db/schema';
-import { orgFilter, locationFilter, tenantWriteDefaults } from '@/src/hair/lib/tenant/filters';
+import { tenantWriteDefaults } from '@/src/hair/lib/tenant/filters';
 import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { friendlyHairDbError } from '@/src/hair/lib/friendlyDbError';
 import {
-  hairCheckoutAttemptKeyColumnReady,
   hairCheckoutOperationsTableReady,
 } from '@/src/hair/lib/checkoutSchemaCapabilities';
 import {
-  isStaleCheckoutOperation,
-  STALE_CHECKOUT_OPERATION_ERROR,
-} from '@/src/hair/lib/checkoutOperationLease';
+  invalidateHairDbOnConnectionError,
+  isHairPostgresConnectionError,
+  logCheckoutDbEvent,
+} from '@/src/hair/lib/checkoutDbError';
 import {
   checkoutFromBasket,
   type CheckoutFromBasketInput,
-  type CheckoutFromBasketResult,
 } from './pipeline';
+import { claimCheckoutOperationLease, markCheckoutOperationFailed, markStaleProcessingOperationsFailed } from './claimLease';
+import {
+  connectionLossOutcome,
+  findCommittedInvoiceIdByAttemptKey,
+  reconcileCheckoutAttempt,
+} from './reconcileAttempt';
+import type { BasketCheckoutOperationResult, BasketCheckoutOutcome } from './types';
 
-export type BasketCheckoutOutcome =
-  | 'committed'
-  | 'already_committed'
-  | 'ambiguous'
-  | 'processing_failed'
-  | 'persistence_failed'
-  | 'validation_failed';
-
-export type BasketCheckoutOperationResult = CheckoutFromBasketResult & {
-  outcome: BasketCheckoutOutcome;
-  correlationId: string;
-  error?: string;
-};
+export type { BasketCheckoutOutcome, BasketCheckoutOperationResult };
 
 export type ExecuteBasketCheckoutParams = CheckoutFromBasketInput & {
   attemptKey: string | null | undefined;
   ctx?: TenantContext | null;
 };
-
-type ClaimLeaseResult = 'claimed' | 'in_progress';
-
-async function claimCheckoutOperationLease(params: {
-  attemptKey: string;
-  correlationId: string;
-  ctx: TenantContext | null;
-  writeDefaults: ReturnType<typeof tenantWriteDefaults>;
-}): Promise<ClaimLeaseResult> {
-  const { attemptKey, correlationId, ctx, writeDefaults } = params;
-  const [existing] = await hairDb
-    .select()
-    .from(fyhCheckoutOperations)
-    .where(
-      and(
-        orgFilter(fyhCheckoutOperations.organizationId, ctx),
-        eq(fyhCheckoutOperations.attemptKey, attemptKey),
-      ),
-    )
-    .limit(1);
-
-  if (existing?.status === 'processing' && !existing.invoiceId) {
-    if (!isStaleCheckoutOperation(existing.createdAt)) {
-      return 'in_progress';
-    }
-    await hairDb
-      .update(fyhCheckoutOperations)
-      .set({ status: 'failed', errorMessage: STALE_CHECKOUT_OPERATION_ERROR })
-      .where(
-        and(
-          orgFilter(fyhCheckoutOperations.organizationId, ctx),
-          eq(fyhCheckoutOperations.attemptKey, attemptKey),
-        ),
-      );
-  }
-
-  if (existing?.status === 'failed') {
-    await hairDb
-      .update(fyhCheckoutOperations)
-      .set({
-        status: 'processing',
-        correlationId,
-        errorMessage: null,
-        invoiceId: null,
-        committedAt: null,
-      })
-      .where(
-        and(
-          orgFilter(fyhCheckoutOperations.organizationId, ctx),
-          eq(fyhCheckoutOperations.attemptKey, attemptKey),
-        ),
-      );
-    return 'claimed';
-  }
-
-  if (existing?.status === 'committed') {
-    return 'in_progress';
-  }
-
-  try {
-    await hairDb.insert(fyhCheckoutOperations).values({
-      ...writeDefaults,
-      attemptKey,
-      kind: 'basket_checkout',
-      status: 'processing',
-      correlationId,
-    });
-    return 'claimed';
-  } catch {
-    const again = await lookupBasketCheckoutByAttemptKey(attemptKey, ctx);
-    if (again?.invoiceId) return 'in_progress';
-    if (again?.outcome === 'ambiguous') return 'in_progress';
-    return 'claimed';
-  }
-}
-
-async function findInvoiceIdByAttemptKey(
-  attemptKey: string,
-  ctx: TenantContext | null,
-): Promise<string | null> {
-  const key = attemptKey.trim();
-  if (!key) return null;
-  if (!(await hairCheckoutAttemptKeyColumnReady())) return null;
-  const [row] = await hairDb
-    .select({ id: fyhInvoices.id })
-    .from(fyhInvoices)
-    .where(
-      and(
-        orgFilter(fyhInvoices.organizationId, ctx),
-        eq(fyhInvoices.checkoutAttemptKey, key),
-        isNull(fyhInvoices.voidedAt),
-      ),
-    )
-    .limit(1);
-  return row?.id ?? null;
-}
 
 export async function lookupBasketCheckoutByAttemptKey(
   attemptKey: string,
@@ -143,91 +38,17 @@ export async function lookupBasketCheckoutByAttemptKey(
   if (!key) return null;
   const resolved = await resolveTenantContextForService(ctx);
 
-  const invoiceId = await findInvoiceIdByAttemptKey(key, resolved);
-  if (invoiceId) {
-    return {
-      outcome: 'already_committed',
-      invoiceId,
-      pricedGrandTotalPaise: 0,
-      amountPaidPaise: 0,
-      advancePaise: 0,
-      receivablePaise: 0,
-      correlationId: key,
-    };
-  }
+  const reconciled = await reconcileCheckoutAttempt(key, resolved);
+  if (!reconciled) return null;
 
-  if (!(await hairCheckoutOperationsTableReady())) return null;
-
-  const [op] = await hairDb
-    .select()
-    .from(fyhCheckoutOperations)
-    .where(
-      and(
-        orgFilter(fyhCheckoutOperations.organizationId, resolved),
-        eq(fyhCheckoutOperations.attemptKey, key),
-      ),
-    )
-    .limit(1);
-  if (!op) return null;
   if (
-    op.status === 'processing' &&
-    !op.invoiceId &&
-    isStaleCheckoutOperation(op.createdAt)
+    reconciled.outcome === 'processing_failed' &&
+    reconciled.error?.includes('did not finish')
   ) {
-    await hairDb
-      .update(fyhCheckoutOperations)
-      .set({ status: 'failed', errorMessage: STALE_CHECKOUT_OPERATION_ERROR })
-      .where(
-        and(
-          orgFilter(fyhCheckoutOperations.organizationId, resolved),
-          eq(fyhCheckoutOperations.attemptKey, key),
-          eq(fyhCheckoutOperations.status, 'processing'),
-        ),
-      );
-    return {
-      outcome: 'processing_failed',
-      invoiceId: '',
-      pricedGrandTotalPaise: 0,
-      amountPaidPaise: 0,
-      advancePaise: 0,
-      receivablePaise: 0,
-      correlationId: op.correlationId,
-      error: STALE_CHECKOUT_OPERATION_ERROR,
-    };
+    await markStaleProcessingOperationsFailed(key, resolved, reconciled.error);
   }
-  if (op.status === 'committed' && op.invoiceId) {
-    return {
-      outcome: 'already_committed',
-      invoiceId: op.invoiceId,
-      pricedGrandTotalPaise: 0,
-      amountPaidPaise: 0,
-      advancePaise: 0,
-      receivablePaise: 0,
-      correlationId: op.correlationId,
-    };
-  }
-  if (op.status === 'failed') {
-    return {
-      outcome: 'processing_failed',
-      invoiceId: op.invoiceId ?? '',
-      pricedGrandTotalPaise: 0,
-      amountPaidPaise: 0,
-      advancePaise: 0,
-      receivablePaise: 0,
-      correlationId: op.correlationId,
-      error: op.errorMessage ?? 'Checkout failed',
-    };
-  }
-  return {
-    outcome: 'ambiguous',
-    invoiceId: op.invoiceId ?? '',
-    pricedGrandTotalPaise: 0,
-    amountPaidPaise: 0,
-    advancePaise: 0,
-    receivablePaise: 0,
-    correlationId: op.correlationId,
-    error: 'Checkout outcome uncertain — verify Billing before retrying.',
-  };
+
+  return reconciled;
 }
 
 export async function executeBasketCheckout(
@@ -241,11 +62,11 @@ export async function executeBasketCheckout(
   const operationsTableReady = attemptKey ? await hairCheckoutOperationsTableReady() : false;
 
   if (attemptKey) {
-    const prior = await lookupBasketCheckoutByAttemptKey(attemptKey, ctx);
-    if (prior?.invoiceId && prior.outcome === 'already_committed') {
+    const prior = await reconcileCheckoutAttempt(attemptKey, ctx, { correlationId });
+    if (prior?.outcome === 'already_committed' && prior.invoiceId) {
       return prior;
     }
-    if (prior?.outcome === 'ambiguous' && prior.error) {
+    if (prior?.outcome === 'ambiguous') {
       return { ...prior, correlationId };
     }
     if (operationsTableReady) {
@@ -255,6 +76,25 @@ export async function executeBasketCheckout(
         ctx,
         writeDefaults,
       });
+      logCheckoutDbEvent('claim_lease', {
+        attemptKey,
+        correlationId,
+        claimed,
+      });
+      if (claimed === 'already_committed') {
+        const invoiceId = await findCommittedInvoiceIdByAttemptKey(attemptKey, ctx);
+        if (invoiceId) {
+          return {
+            outcome: 'already_committed',
+            invoiceId,
+            pricedGrandTotalPaise: 0,
+            amountPaidPaise: 0,
+            advancePaise: 0,
+            receivablePaise: 0,
+            correlationId,
+          };
+        }
+      }
       if (claimed === 'in_progress') {
         return {
           invoiceId: '',
@@ -272,63 +112,79 @@ export async function executeBasketCheckout(
   }
 
   try {
+    logCheckoutDbEvent('checkout_transaction', { attemptKey, correlationId, phase: 'start' });
     const result = await checkoutFromBasket({
       ...params,
       checkoutAttemptKey: attemptKey,
+      checkoutOperationCorrelationId: operationsTableReady ? correlationId : null,
       ctx,
     });
-    if (attemptKey && operationsTableReady) {
-      await hairDb
-        .update(fyhCheckoutOperations)
-        .set({
-          status: 'committed',
-          invoiceId: result.invoiceId,
-          committedAt: new Date(),
-          errorMessage: null,
-        })
-        .where(
-          and(
-            orgFilter(fyhCheckoutOperations.organizationId, ctx),
-            eq(fyhCheckoutOperations.attemptKey, attemptKey),
-          ),
-        );
-    }
+    logCheckoutDbEvent('checkout_transaction', {
+      attemptKey,
+      correlationId,
+      phase: 'committed',
+      invoiceId: result.invoiceId,
+    });
     return { ...result, outcome: 'committed', correlationId };
   } catch (e) {
+    await invalidateHairDbOnConnectionError(e);
+    logCheckoutDbEvent('checkout_transaction', {
+      attemptKey,
+      correlationId,
+      phase: 'error',
+      connectionError: isHairPostgresConnectionError(e),
+    });
+
     const message = friendlyHairDbError(e, correlationId);
-    const outcome: BasketCheckoutOutcome =
-      message.includes('permission') || message.includes('required') || message.includes('Select')
-        ? 'validation_failed'
-        : 'processing_failed';
-    if (attemptKey && operationsTableReady) {
-      try {
-        const invoiceId = await findInvoiceIdByAttemptKey(attemptKey, ctx);
-        if (invoiceId) {
-          return {
-            ...{
-              invoiceId,
-              pricedGrandTotalPaise: 0,
-              amountPaidPaise: 0,
-              advancePaise: 0,
-              receivablePaise: 0,
-            },
-            outcome: 'already_committed',
-            correlationId,
-          };
-        }
-        await hairDb
-          .update(fyhCheckoutOperations)
-          .set({ status: 'failed', errorMessage: message })
-          .where(
-            and(
-              orgFilter(fyhCheckoutOperations.organizationId, ctx),
-              eq(fyhCheckoutOperations.attemptKey, attemptKey),
-            ),
+    const validationFailed =
+      message.includes('permission') ||
+      message.includes('required') ||
+      message.includes('Select');
+
+    if (attemptKey) {
+      const reconciled = await reconcileCheckoutAttempt(attemptKey, ctx, { correlationId });
+      logCheckoutDbEvent('reconcile', {
+        attemptKey,
+        correlationId,
+        outcome: reconciled?.outcome ?? null,
+      });
+      if (reconciled?.outcome === 'already_committed' && reconciled.invoiceId) {
+        return { ...reconciled, correlationId };
+      }
+      if (isHairPostgresConnectionError(e) && reconciled?.outcome === 'ambiguous') {
+        return connectionLossOutcome(
+          correlationId,
+          'Connection to billing database was lost during checkout. Verify Billing before retrying.',
+        );
+      }
+      if (operationsTableReady && reconciled?.outcome === 'processing_failed') {
+        try {
+          await markStaleProcessingOperationsFailed(
+            attemptKey,
+            ctx,
+            reconciled.error ?? message,
           );
-      } catch {
-        // journal update best-effort
+        } catch {
+          // best-effort
+        }
+        return { ...reconciled, correlationId };
+      }
+      if (operationsTableReady && !validationFailed) {
+        try {
+          await markCheckoutOperationFailed({
+            attemptKey,
+            ctx,
+            correlationId,
+            errorMessage: message,
+            onlyIfProcessing: true,
+          });
+        } catch {
+          // best-effort journal
+        }
       }
     }
+
+    const outcome: BasketCheckoutOutcome = validationFailed ? 'validation_failed' : 'processing_failed';
     return {
       invoiceId: '',
       pricedGrandTotalPaise: 0,
