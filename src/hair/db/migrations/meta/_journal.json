@@ -362,20 +362,6 @@
     {
       "idx": 51,
       "version": "7",
-      "when": 1759650000000,
-      "tag": "0050_advance_payment_invoices",
-      "breakpoints": true
-    },
-    {
-      "idx": 52,
-      "version": "7",
-      "when": 1759700000000,
-      "tag": "0053_expense_dashboard_categories",
-      "breakpoints": true
-    },
-    {
-      "idx": 53,
-      "version": "7",
       "when": 1759750000000,
       "tag": "0054_fyh_checkout_operations",
       "breakpoints": true

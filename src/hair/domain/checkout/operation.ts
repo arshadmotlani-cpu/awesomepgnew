@@ -7,6 +7,10 @@ import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceCon
 import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { friendlyHairDbError } from '@/src/hair/lib/friendlyDbError';
 import {
+  hairCheckoutAttemptKeyColumnReady,
+  hairCheckoutOperationsTableReady,
+} from '@/src/hair/lib/checkoutSchemaCapabilities';
+import {
   checkoutFromBasket,
   type CheckoutFromBasketInput,
   type CheckoutFromBasketResult,
@@ -37,6 +41,7 @@ async function findInvoiceIdByAttemptKey(
 ): Promise<string | null> {
   const key = attemptKey.trim();
   if (!key) return null;
+  if (!(await hairCheckoutAttemptKeyColumnReady())) return null;
   const [row] = await hairDb
     .select({ id: fyhInvoices.id })
     .from(fyhInvoices)
@@ -71,6 +76,8 @@ export async function lookupBasketCheckoutByAttemptKey(
       correlationId: key,
     };
   }
+
+  if (!(await hairCheckoutOperationsTableReady())) return null;
 
   const [op] = await hairDb
     .select()
@@ -126,22 +133,26 @@ export async function executeBasketCheckout(
   const ctx = await resolveTenantContextForService(params.ctx);
   const writeDefaults = tenantWriteDefaults(ctx);
 
+  const operationsTableReady = attemptKey ? await hairCheckoutOperationsTableReady() : false;
+
   if (attemptKey) {
     const prior = await lookupBasketCheckoutByAttemptKey(attemptKey, ctx);
     if (prior?.invoiceId && prior.outcome === 'already_committed') {
       return prior;
     }
-    try {
-      await hairDb.insert(fyhCheckoutOperations).values({
-        ...writeDefaults,
-        attemptKey,
-        kind: 'basket_checkout',
-        status: 'processing',
-        correlationId,
-      });
-    } catch {
-      const again = await lookupBasketCheckoutByAttemptKey(attemptKey, ctx);
-      if (again?.invoiceId) return again;
+    if (operationsTableReady) {
+      try {
+        await hairDb.insert(fyhCheckoutOperations).values({
+          ...writeDefaults,
+          attemptKey,
+          kind: 'basket_checkout',
+          status: 'processing',
+          correlationId,
+        });
+      } catch {
+        const again = await lookupBasketCheckoutByAttemptKey(attemptKey, ctx);
+        if (again?.invoiceId) return again;
+      }
     }
   }
 
@@ -151,7 +162,7 @@ export async function executeBasketCheckout(
       checkoutAttemptKey: attemptKey,
       ctx,
     });
-    if (attemptKey) {
+    if (attemptKey && operationsTableReady) {
       await hairDb
         .update(fyhCheckoutOperations)
         .set({
@@ -174,7 +185,7 @@ export async function executeBasketCheckout(
       message.includes('permission') || message.includes('required') || message.includes('Select')
         ? 'validation_failed'
         : 'processing_failed';
-    if (attemptKey) {
+    if (attemptKey && operationsTableReady) {
       try {
         const invoiceId = await findInvoiceIdByAttemptKey(attemptKey, ctx);
         if (invoiceId) {

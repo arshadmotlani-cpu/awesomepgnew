@@ -26,6 +26,7 @@ import type { TenantContext } from '@/src/hair/lib/tenant/types';
 import { orgFilter, locationFilter, tenantWriteDefaults } from '@/src/hair/lib/tenant/filters';
 import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
+import { hairCheckoutAttemptKeyColumnReady } from '@/src/hair/lib/checkoutSchemaCapabilities';
 
 export type CheckoutFromBasketInput = {
   basket: Basket;
@@ -102,7 +103,8 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
   }
 
   const attemptKey = input.checkoutAttemptKey?.trim() || null;
-  if (attemptKey) {
+  const attemptKeyColumnReady = await hairCheckoutAttemptKeyColumnReady();
+  if (attemptKey && attemptKeyColumnReady) {
     const [existing] = await hairDb
       .select({ id: fyhInvoices.id })
       .from(fyhInvoices)
@@ -252,7 +254,7 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
       paidAt: status === 'paid' ? new Date() : null,
       notes: input.notes ?? null,
       posDraft: null,
-      checkoutAttemptKey: attemptKey,
+      ...(attemptKeyColumnReady && attemptKey ? { checkoutAttemptKey: attemptKey } : {}),
     };
 
     let inv;
