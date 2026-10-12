@@ -11,6 +11,16 @@ function flattenMessage(err: unknown): string {
   return String(err);
 }
 
+/** Postgres killed the session because a transaction stopped issuing queries. That aborts the open transaction. */
+export function isIdleInTransactionSessionTimeout(err: unknown): boolean {
+  const message = flattenMessage(err);
+  const shape = err as ErrShape;
+  const code = shape.code ?? shape.cause?.code ?? '';
+  const causeMsg = shape.cause?.message ?? '';
+  const haystack = `${message} ${causeMsg}`;
+  return code === '25P03' || /idle-in-transaction timeout/i.test(haystack);
+}
+
 /** postgres.js / Neon pooler connection loss (not proof that a transaction rolled back). */
 export function isHairPostgresConnectionError(err: unknown): boolean {
   const message = flattenMessage(err);
@@ -30,7 +40,7 @@ export function isHairPostgresConnectionError(err: unknown): boolean {
 
 /** Drop the singleton pool so the next query opens a fresh Neon connection. */
 export async function invalidateHairDbOnConnectionError(err: unknown): Promise<void> {
-  if (!isHairPostgresConnectionError(err)) return;
+  if (!isHairPostgresConnectionError(err) && !isIdleInTransactionSessionTimeout(err)) return;
   await closeHairDb();
 }
 

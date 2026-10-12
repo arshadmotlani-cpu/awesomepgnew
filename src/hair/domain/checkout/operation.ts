@@ -9,6 +9,7 @@ import {
 import {
   invalidateHairDbOnConnectionError,
   isHairPostgresConnectionError,
+  isIdleInTransactionSessionTimeout,
   logCheckoutDbEvent,
 } from '@/src/hair/lib/checkoutDbError';
 import {
@@ -150,6 +151,31 @@ export async function executeBasketCheckout(
       });
       if (reconciled?.outcome === 'already_committed' && reconciled.invoiceId) {
         return { ...reconciled, correlationId };
+      }
+      if (
+        isIdleInTransactionSessionTimeout(e) &&
+        reconciled?.outcome === 'ambiguous' &&
+        operationsTableReady
+      ) {
+        const stalled =
+          'Checkout stalled before it could be saved. Verify Billing, then retry.';
+        try {
+          await markCheckoutOperationFailed({
+            attemptKey,
+            ctx,
+            correlationId,
+            errorMessage: stalled,
+            onlyIfProcessing: true,
+          });
+        } catch {
+          // best-effort journal
+        }
+        return {
+          ...reconciled,
+          outcome: 'processing_failed',
+          correlationId,
+          error: stalled,
+        };
       }
       if (isHairPostgresConnectionError(e) && reconciled?.outcome === 'ambiguous') {
         return connectionLossOutcome(

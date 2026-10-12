@@ -1,5 +1,6 @@
 import { and, desc, eq, gte, inArray, lt, ne, or, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
+import { logCheckoutDbEvent } from '@/src/hair/lib/checkoutDbError';
 import {
   fyhAppointments,
   fyhCommissionEntries,
@@ -859,6 +860,13 @@ async function updateServiceLineStats(
   }
 }
 
+/** Product-only sales have nothing for the legacy service-commission fallback to do. */
+export function invoiceLinesNeedLegacyCommissionFallback(
+  lines: readonly { kind: string; serviceId?: string | null }[],
+): boolean {
+  return lines.some((line) => line.kind === 'service' && Boolean(line.serviceId));
+}
+
 /** Legacy commission for service lines that have no fyh_invoice_line_attributions rows. */
 async function applyLegacyCommissionFallback(
   db: typeof hairDb,
@@ -866,7 +874,7 @@ async function applyLegacyCommissionFallback(
   lines: (typeof fyhInvoiceLines.$inferSelect)[],
   ctx?: TenantContext | null,
 ) {
-  if (!lines.length) return;
+  if (!invoiceLinesNeedLegacyCommissionFallback(lines)) return;
 
   const lineIds = lines.map((l) => l.id);
   const attributed = await db
@@ -974,7 +982,17 @@ export async function applyPaidSideEffects(
 
   await updateServiceLineStats(db, lines, ctx);
   await evaluateCommissionsForInvoice(db, invoiceId, ctx);
+  logCheckoutDbEvent('checkout_transaction', {
+    phase: invoiceLinesNeedLegacyCommissionFallback(lines)
+      ? 'legacy_fallback_before'
+      : 'legacy_fallback_skipped',
+    lineCount: lines.length,
+  });
   await applyLegacyCommissionFallback(db, invoice, lines, ctx);
+  logCheckoutDbEvent('checkout_transaction', {
+    phase: 'legacy_fallback_after',
+    lineCount: lines.length,
+  });
 
   if (!isQuickSale) {
     await applyInventorySideEffects(db, invoiceId, lines, ctx);

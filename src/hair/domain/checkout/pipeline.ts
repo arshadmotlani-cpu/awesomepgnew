@@ -27,6 +27,7 @@ import { orgFilter, locationFilter, tenantWriteDefaults } from '@/src/hair/lib/t
 import { resolveTenantContextForService } from '@/src/hair/lib/tenant/serviceContext';
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import { hairCheckoutAttemptKeyColumnReady } from '@/src/hair/lib/checkoutSchemaCapabilities';
+import { logCheckoutDbEvent } from '@/src/hair/lib/checkoutDbError';
 import { fyhCheckoutOperations } from '@/src/hair/db/schema';
 
 export type CheckoutFromBasketInput = {
@@ -177,6 +178,16 @@ export async function checkoutFromBasket(input: CheckoutFromBasketInput): Promis
 
   const invoiceId = await hairDb.transaction(async (tx) => {
     const db = tx as unknown as typeof hairDb;
+
+    // Neon’s pooler ignores this GUC as a startup parameter (session stays at 5min).
+    // SET LOCAL applies inside the transaction and aborts a ClientRead zombie.
+    await db.execute(
+      sql`select set_config('idle_in_transaction_session_timeout', '15000', true)`,
+    );
+    logCheckoutDbEvent('checkout_transaction', {
+      phase: 'idle_timeout_armed',
+      attemptKey: input.checkoutAttemptKey ?? null,
+    });
 
     if (input.holdInvoiceId) {
       const [hold] = await db

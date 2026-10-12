@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { isHairPostgresConnectionError } from '@/src/hair/lib/checkoutDbError';
+import {
+  isHairPostgresConnectionError,
+  isIdleInTransactionSessionTimeout,
+} from '@/src/hair/lib/checkoutDbError';
 
 type PgCause = { code?: string; message?: string };
 
@@ -28,6 +31,10 @@ export function friendlyHairDbError(err: unknown, correlationId?: string): strin
 
   if (pg?.code === '42P01' && /fyh_checkout_operations/i.test(message)) {
     return `Billing database schema is not up to date (checkout operations). Run Hair migration 0054, then retry. Reference: ${ref}`;
+  }
+
+  if (isIdleInTransactionSessionTimeout(err)) {
+    return `Checkout did not finish because the billing transaction stalled. Verify Billing before retrying. Reference: ${ref}`;
   }
 
   if (isHairPostgresConnectionError(err)) {

@@ -4,11 +4,41 @@ import { join } from 'node:path';
 import test from 'node:test';
 import {
   isHairPostgresConnectionError,
+  isIdleInTransactionSessionTimeout,
 } from '@/src/hair/lib/checkoutDbError';
+import { invoiceLinesNeedLegacyCommissionFallback } from '@/src/hair/services/invoices';
 
-test('hair db client aborts idle-in-transaction sessions', () => {
-  const src = readFileSync(join(process.cwd(), 'src/hair/db/client.ts'), 'utf8');
-  assert.match(src, /idle_in_transaction_session_timeout: 15_000/);
+test('checkout transaction arms idle timeout with SET LOCAL', () => {
+  const src = readFileSync(join(process.cwd(), 'src/hair/domain/checkout/pipeline.ts'), 'utf8');
+  assert.match(src, /set_config\('idle_in_transaction_session_timeout', '15000', true\)/);
+  const client = readFileSync(join(process.cwd(), 'src/hair/db/client.ts'), 'utf8');
+  assert.doesNotMatch(client, /idle_in_transaction_session_timeout/);
+});
+
+test('product-only sales skip the legacy attribution lookup', () => {
+  assert.equal(
+    invoiceLinesNeedLegacyCommissionFallback([
+      { kind: 'product', serviceId: null },
+    ]),
+    false,
+  );
+  assert.equal(
+    invoiceLinesNeedLegacyCommissionFallback([
+      { kind: 'service', serviceId: 'svc-1' },
+    ]),
+    true,
+  );
+});
+
+test('detects idle-in-transaction session timeout', () => {
+  assert.equal(isIdleInTransactionSessionTimeout({ code: '25P03' }), true);
+  assert.equal(
+    isIdleInTransactionSessionTimeout(
+      new Error('terminating connection due to idle-in-transaction timeout'),
+    ),
+    true,
+  );
+  assert.equal(isIdleInTransactionSessionTimeout(new Error('validation failed')), false);
 });
 
 test('detects Neon CONNECTION_CLOSED errors', () => {
