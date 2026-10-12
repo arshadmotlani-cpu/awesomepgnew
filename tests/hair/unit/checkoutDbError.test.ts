@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 import {
+  checkoutErrorKind,
   isHairPostgresConnectionError,
   isIdleInTransactionSessionTimeout,
 } from '@/src/hair/lib/checkoutDbError';
@@ -28,6 +29,19 @@ test('product-only sales skip the legacy attribution lookup', () => {
     ]),
     true,
   );
+});
+
+test('quick sale inventory keeps the checkout tenant context', () => {
+  const src = readFileSync(join(process.cwd(), 'src/hair/services/invoices.ts'), 'utf8');
+  assert.match(src, /movementType: 'sale'[\s\S]*?\},\s*ctx,/);
+});
+
+test('connection closed is classified without SQL text', () => {
+  assert.equal(
+    checkoutErrorKind(new Error('write CONNECTION_CLOSED ep-example-pooler.neon.tech:5432')),
+    'connection_closed',
+  );
+  assert.equal(checkoutErrorKind({ code: '25P03' }), 'idle_timeout');
 });
 
 test('detects idle-in-transaction session timeout', () => {

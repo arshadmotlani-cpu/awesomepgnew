@@ -8,6 +8,7 @@ import {
 } from '@/src/hair/lib/checkoutSchemaCapabilities';
 import {
   invalidateHairDbOnConnectionError,
+  checkoutErrorKind,
   isHairPostgresConnectionError,
   isIdleInTransactionSessionTimeout,
   logCheckoutDbEvent,
@@ -134,6 +135,7 @@ export async function executeBasketCheckout(
       correlationId,
       phase: 'error',
       connectionError: isHairPostgresConnectionError(e),
+      errorKind: checkoutErrorKind(e),
     });
 
     const message = friendlyHairDbError(e, correlationId);
@@ -178,10 +180,22 @@ export async function executeBasketCheckout(
         };
       }
       if (isHairPostgresConnectionError(e) && reconciled?.outcome === 'ambiguous') {
-        return connectionLossOutcome(
-          correlationId,
-          'Connection to billing database was lost during checkout. Verify Billing before retrying.',
-        );
+        const lost =
+          'Connection to billing database was lost during checkout. Verify Billing before retrying.';
+        if (operationsTableReady) {
+          try {
+            await markCheckoutOperationFailed({
+              attemptKey,
+              ctx,
+              correlationId,
+              errorMessage: lost,
+              onlyIfProcessing: true,
+            });
+          } catch {
+            // best-effort journal
+          }
+        }
+        return connectionLossOutcome(correlationId, lost);
       }
       if (operationsTableReady && reconciled?.outcome === 'processing_failed') {
         try {

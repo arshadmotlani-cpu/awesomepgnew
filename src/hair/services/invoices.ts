@@ -818,26 +818,34 @@ async function applyInventorySideEffects(
       for (const kit of kits) {
         if (!kit.deductInventory) continue;
         const qty = Number(kit.quantity) * line.quantity;
-        await applyMovement(db, {
-          productId: kit.productId,
-          quantityDelta: -qty,
-          movementType: 'consumption',
-          referenceType: 'invoice',
-          referenceId: invoiceId,
-          notes: `Service consumption · ${line.nameSnapshot}`,
-        });
+        await applyMovement(
+          db,
+          {
+            productId: kit.productId,
+            quantityDelta: -qty,
+            movementType: 'consumption',
+            referenceType: 'invoice',
+            referenceId: invoiceId,
+            notes: `Service consumption · ${line.nameSnapshot}`,
+          },
+          ctx,
+        );
       }
     }
 
     if (line.kind === 'product' && line.productId) {
-      await applyMovement(db, {
-        productId: line.productId,
-        quantityDelta: -line.quantity,
-        movementType: 'sale',
-        referenceType: 'invoice',
-        referenceId: invoiceId,
-        notes: `Retail sale · ${line.nameSnapshot}`,
-      });
+      await applyMovement(
+        db,
+        {
+          productId: line.productId,
+          quantityDelta: -line.quantity,
+          movementType: 'sale',
+          referenceType: 'invoice',
+          referenceId: invoiceId,
+          notes: `Retail sale · ${line.nameSnapshot}`,
+        },
+        ctx,
+      );
     }
   }
 }
@@ -994,12 +1002,20 @@ export async function applyPaidSideEffects(
     lineCount: lines.length,
   });
 
+  logCheckoutDbEvent('checkout_transaction', {
+    phase: 'inventory_before',
+    lineCount: lines.length,
+  });
   if (!isQuickSale) {
     await applyInventorySideEffects(db, invoiceId, lines, ctx);
   }
 
   if (isQuickSale) {
     await applyInventorySideEffects(db, invoiceId, lines, ctx);
+    logCheckoutDbEvent('checkout_transaction', {
+      phase: 'inventory_after',
+      lineCount: lines.length,
+    });
     for (const line of lines) {
       if (line.kind === 'membership' && line.membershipId) {
         await sellMembershipWithDb(db, invoice.customerId, line.membershipId);

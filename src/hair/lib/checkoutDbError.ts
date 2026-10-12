@@ -38,6 +38,21 @@ export function isHairPostgresConnectionError(err: unknown): boolean {
   );
 }
 
+/** Safe classifier for logs. Does not include SQL text or hostnames. */
+export function checkoutErrorKind(err: unknown): string {
+  if (isIdleInTransactionSessionTimeout(err)) return 'idle_timeout';
+  const message = flattenMessage(err);
+  const shape = err as ErrShape;
+  const code = shape.code ?? shape.cause?.code ?? '';
+  if (code === '25P03') return 'idle_timeout';
+  if (code === 'CONNECTION_CLOSED' || /CONNECTION_CLOSED/i.test(message)) return 'connection_closed';
+  if (code === 'CONNECT_TIMEOUT' || /CONNECT_TIMEOUT/i.test(message)) return 'connect_timeout';
+  if (code === 'ECONNRESET' || /ECONNRESET/i.test(message)) return 'econnreset';
+  if (code === '57P01') return 'admin_shutdown';
+  if (code) return code;
+  return 'other';
+}
+
 /** Drop the singleton pool so the next query opens a fresh Neon connection. */
 export async function invalidateHairDbOnConnectionError(err: unknown): Promise<void> {
   if (!isHairPostgresConnectionError(err) && !isIdleInTransactionSessionTimeout(err)) return;
