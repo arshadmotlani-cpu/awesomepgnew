@@ -1030,6 +1030,13 @@
       "when": 1796000000000,
       "tag": "0155_pg_approved_txn_ref_multi",
       "breakpoints": true
+    },
+    {
+      "idx": 151,
+      "version": "7",
+      "when": 1796100000000,
+      "tag": "0156_standalone_customer_invoice",
+      "breakpoints": true
     }
   ]
 }

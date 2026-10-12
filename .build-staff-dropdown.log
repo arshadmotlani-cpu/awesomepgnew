@@ -1,0 +1,759 @@
+
+> awesomepg@0.1.0 build
+> NODE_OPTIONS=--max-old-space-size=8192 next build
+
+[@sentry/nextjs] DEPRECATION WARNING: disableLogger is deprecated and will be removed in a future version. Use webpack.treeshake.removeDebugLogging instead. (Not supported with Turbopack.)
+▲ Next.js 16.2.6 (Turbopack)
+- Environments: .env.production.local, .env.local
+- Experiments (use with caution):
+  · clientTraceMetadata
+  · serverActions
+
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+[@sentry/nextjs] DEPRECATION WARNING: disableLogger is deprecated and will be removed in a future version. Use webpack.treeshake.removeDebugLogging instead. (Not supported with Turbopack.)
+Turbopack build encountered 10 warnings:
+./src/lib/billing/invoicePdf.ts:208:22
+The file pattern ('/ROOT/' <dynamic> | '/ROOT' <dynamic>) matches 11406 files in [project]/
+  [90m206 |[0m [36masync[0m [36mfunction[0m tryEmbedBrandLogo(pdfDoc: [33mPDFDocument[0m) {
+  [90m207 |[0m   [36mtry[0m {
+[31m[1m>[0m [90m208 |[0m     [36mconst[0m logoPath = join(process.cwd(), getProductBrandLogoFsPath([32m'awesomepg'[0m));
+  [90m    |[0m                      [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m209 |[0m     [36mconst[0m bytes = readFileSync(logoPath);
+  [90m210 |[0m     [36mreturn[0m [36mawait[0m pdfDoc.embedPng(bytes);
+  [90m211 |[0m   } [36mcatch[0m {
+
+Overly broad patterns can lead to build performance issues and over bundling.
+
+Import trace:
+  App Route:
+    ./src/lib/billing/invoicePdf.ts
+    ./src/lib/billing/invoicePdfDownload.ts
+    ./app/api/invoices/share/[shareToken]/pdf/route.ts
+
+
+./src/lib/db/loadEnv.ts:179:20
+The file pattern ('/ROOT/.env.prod.live' | '/ROOT.env.prod.live' | '/ROOT/.env.production.pull' | '/ROOT.env.production.pull' | '/ROOT/.env.production.local' | '/ROOT.env.production.local' | '/ROOT/' <dynamic> | '/ROOT' <dynamic>) matches 11409 files in [project]/
+  [90m177 |[0m     [36mfor[0m ([36mconst[0m name [36mof[0m [33mPRODUCTION_AUDIT_ENV_FILES[0m) {
+  [90m178 |[0m       [36mif[0m (name === [32m'.env.prod.live'[0m) [36mcontinue[0m;
+[31m[1m>[0m [90m179 |[0m       [36mconst[0m path = join(cwd, name);
+  [90m    |[0m                    [31m[1m^^^^^^^^^^^^^^^[0m
+  [90m180 |[0m       [36mif[0m (existsSync(path)) {
+  [90m181 |[0m         applyEnvFile(path, [36mtrue[0m);
+  [90m182 |[0m       }
+
+Overly broad patterns can lead to build performance issues and over bundling.
+
+Import traces:
+  #1 [Instrumentation]:
+    ./src/lib/db/loadEnv.ts
+    ./src/db/startupMigrationGate.ts
+    ./instrumentation.ts
+
+  #2 [App Route]:
+    ./src/lib/db/loadEnv.ts
+    ./src/lib/billing/invoicePdf.ts
+    ./src/lib/billing/invoicePdfDownload.ts
+    ./app/api/invoices/share/[shareToken]/pdf/route.ts
+
+  #3 [App Route]:
+    ./src/lib/db/loadEnv.ts
+    ./src/lib/db/loadProductionCutoverEnv.ts
+    ./src/hair/lib/db/integrationWriteGuard.ts
+    ./src/hair/db/client.ts
+    ./src/workforce/brains/employeeBrain.ts
+    ./app/(hair)/fyh/api/office-location/geocode/route.ts
+
+  #4 [Server Component]:
+    ./src/lib/db/loadEnv.ts
+    ./src/lib/db/loadProductionCutoverEnv.ts
+    ./src/hair/lib/db/integrationWriteGuard.ts
+    ./src/hair/db/client.ts
+    ./src/hair/lib/auth/session.ts
+    ./app/(hair)/fyh/(app)/layout.tsx
+
+
+./next.config.ts
+Encountered unexpected file in NFT list
+A file was traced that indicates that the whole project was traced unintentionally. Somewhere in the import trace below, there are:
+- filesystem operations (like path.join, path.resolve or fs.readFile), or
+- very dynamic requires (like require('./' + foo)).
+To resolve this, you can
+- remove them if possible, or
+- only use them in development, or
+- make sure they are statically scoped to some subfolder: path.join(process.cwd(), 'data', bar), or
+- add ignore comments: path.join(/*turbopackIgnore: true*/ process.cwd(), bar)
+
+Import trace:
+  App Route:
+    ./next.config.ts
+    ./src/lib/billing/invoicePdf.ts
+    ./src/lib/billing/invoicePdfDownload.ts
+    ./app/api/invoices/share/[shareToken]/pdf/route.ts
+
+
+./next.config.ts
+Encountered unexpected file in NFT list
+A file was traced that indicates that the whole project was traced unintentionally. Somewhere in the import trace below, there are:
+- filesystem operations (like path.join, path.resolve or fs.readFile), or
+- very dynamic requires (like require('./' + foo)).
+To resolve this, you can
+- remove them if possible, or
+- only use them in development, or
+- make sure they are statically scoped to some subfolder: path.join(process.cwd(), 'data', bar), or
+- add ignore comments: path.join(/*turbopackIgnore: true*/ process.cwd(), bar)
+
+Output asset trace:
+  [output]/.next/server/app/(owner)/owner/(app)/expenses/page.js
+  [output]/.next/server/chunks/ssr/_0nss~95._.js
+
+Import trace:
+  App Route:
+    ./next.config.ts
+    ./src/lib/billing/invoicePdf.ts
+    ./src/lib/billing/invoicePdfDownload.ts
+    ./app/api/invoices/share/[shareToken]/pdf/route.ts
+
+
+./next.config.ts
+Encountered unexpected file in NFT list
+A file was traced that indicates that the whole project was traced unintentionally. Somewhere in the import trace below, there are:
+- filesystem operations (like path.join, path.resolve or fs.readFile), or
+- very dynamic requires (like require('./' + foo)).
+To resolve this, you can
+- remove them if possible, or
+- only use them in development, or
+- make sure they are statically scoped to some subfolder: path.join(process.cwd(), 'data', bar), or
+- add ignore comments: path.join(/*turbopackIgnore: true*/ process.cwd(), bar)
+
+Output asset trace:
+  [output]/.next/server/app/(owner)/owner/(app)/income/page.js
+  [output]/.next/server/chunks/ssr/_0.lscbb._.js
+
+Import trace:
+  App Route:
+    ./next.config.ts
+    ./src/lib/billing/invoicePdf.ts
+    ./src/lib/billing/invoicePdfDownload.ts
+    ./app/api/invoices/share/[shareToken]/pdf/route.ts
+
+
+./next.config.ts
+Encountered unexpected file in NFT list
+A file was traced that indicates that the whole project was traced unintentionally. Somewhere in the import trace below, there are:
+- filesystem operations (like path.join, path.resolve or fs.readFile), or
+- very dynamic requires (like require('./' + foo)).
+To resolve this, you can
+- remove them if possible, or
+- only use them in development, or
+- make sure they are statically scoped to some subfolder: path.join(process.cwd(), 'data', bar), or
+- add ignore comments: path.join(/*turbopackIgnore: true*/ process.cwd(), bar)
+
+Output asset trace:
+  [output]/.next/server/app/(owner)/owner/(app)/liabilities/[id]/page.js
+  [output]/.next/server/chunks/ssr/_00si1q2._.js
+  [output]/.next/server/chunks/ssr/_0rj0z-e._.js
+
+Import trace:
+  App Route:
+    ./next.config.ts
+    ./src/lib/billing/invoicePdf.ts
+    ./src/lib/billing/invoicePdfDownload.ts
+    ./app/api/invoices/share/[shareToken]/pdf/route.ts
+
+
+./next.config.ts
+Encountered unexpected file in NFT list
+A file was traced that indicates that the whole project was traced unintentionally. Somewhere in the import trace below, there are:
+- filesystem operations (like path.join, path.resolve or fs.readFile), or
+- very dynamic requires (like require('./' + foo)).
+To resolve this, you can
+- remove them if possible, or
+- only use them in development, or
+- make sure they are statically scoped to some subfolder: path.join(process.cwd(), 'data', bar), or
+- add ignore comments: path.join(/*turbopackIgnore: true*/ process.cwd(), bar)
+
+Output asset trace:
+  [output]/.next/server/app/(owner)/owner/(app)/properties/new/page.js
+  [output]/.next/server/chunks/ssr/_00fnfed._.js
+  [output]/.next/server/chunks/ssr/_0ptr1cb._.js
+
+Import trace:
+  App Route:
+    ./next.config.ts
+    ./src/lib/billing/invoicePdf.ts
+    ./src/lib/billing/invoicePdfDownload.ts
+    ./app/api/invoices/share/[shareToken]/pdf/route.ts
+
+
+./next.config.ts
+Encountered unexpected file in NFT list
+A file was traced that indicates that the whole project was traced unintentionally. Somewhere in the import trace below, there are:
+- filesystem operations (like path.join, path.resolve or fs.readFile), or
+- very dynamic requires (like require('./' + foo)).
+To resolve this, you can
+- remove them if possible, or
+- only use them in development, or
+- make sure they are statically scoped to some subfolder: path.join(process.cwd(), 'data', bar), or
+- add ignore comments: path.join(/*turbopackIgnore: true*/ process.cwd(), bar)
+
+Output asset trace:
+  [output]/.next/server/chunks/ssr/_0sw0hnx._.js
+  [output]/.next/server/chunks/ssr/_0360c54._.js
+
+Import trace:
+  App Route:
+    ./next.config.ts
+    ./src/lib/billing/invoicePdf.ts
+    ./src/lib/billing/invoicePdfDownload.ts
+    ./app/api/invoices/share/[shareToken]/pdf/route.ts
+
+
+./next.config.ts
+Encountered unexpected file in NFT list
+A file was traced that indicates that the whole project was traced unintentionally. Somewhere in the import trace below, there are:
+- filesystem operations (like path.join, path.resolve or fs.readFile), or
+- very dynamic requires (like require('./' + foo)).
+To resolve this, you can
+- remove them if possible, or
+- only use them in development, or
+- make sure they are statically scoped to some subfolder: path.join(process.cwd(), 'data', bar), or
+- add ignore comments: path.join(/*turbopackIgnore: true*/ process.cwd(), bar)
+
+Output asset trace:
+  [output]/.next/server/chunks/ssr/_12w3v8o._.js
+  [output]/.next/server/chunks/ssr/_0q94atj._.js
+
+Import trace:
+  App Route:
+    ./next.config.ts
+    ./src/lib/billing/invoicePdf.ts
+    ./src/lib/billing/invoicePdfDownload.ts
+    ./app/api/invoices/share/[shareToken]/pdf/route.ts
+
+
+./next.config.ts
+Encountered unexpected file in NFT list
+A file was traced that indicates that the whole project was traced unintentionally. Somewhere in the import trace below, there are:
+- filesystem operations (like path.join, path.resolve or fs.readFile), or
+- very dynamic requires (like require('./' + foo)).
+To resolve this, you can
+- remove them if possible, or
+- only use them in development, or
+- make sure they are statically scoped to some subfolder: path.join(process.cwd(), 'data', bar), or
+- add ignore comments: path.join(/*turbopackIgnore: true*/ process.cwd(), bar)
+
+Output asset trace:
+  [output]/.next/server/instrumentation.js
+  [output]/.next/server/chunks/[root-of-the-server]__10h818b._.js
+
+Import trace:
+  App Route:
+    ./next.config.ts
+    ./src/lib/billing/invoicePdf.ts
+    ./src/lib/billing/invoicePdfDownload.ts
+    ./app/api/invoices/share/[shareToken]/pdf/route.ts
+
+
+✓ Compiled successfully in 65s
+  Running next.config.js provided runAfterProductionCompile ...
+✓ Completed runAfterProductionCompile in 2.4s
+  Running TypeScript ...
+  Finished TypeScript in 96s ...
+  Collecting page data using 7 workers ...
+  Generating static pages using 7 workers (0/56) ...
+  Generating static pages using 7 workers (14/56) 
+⚠ Unsupported metadata themeColor is configured in metadata export in /admin/forgot-password. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata themeColor is configured in metadata export in /brand/awesomepg. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata themeColor is configured in metadata export in /admin/login. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata themeColor is configured in metadata export in /about. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata themeColor is configured in metadata export in /admin/reset-password. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata themeColor is configured in metadata export in /account/kyc. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata themeColor is configured in metadata export in /account/set-password. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata themeColor is configured in metadata export in /account/payments. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata themeColor is configured in metadata export in /brand/capital. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata themeColor is configured in metadata export in /account/wallet. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+  Generating static pages using 7 workers (28/56) 
+⚠ Unsupported metadata themeColor is configured in metadata export in /dev/booking-funnel-ui. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata themeColor is configured in metadata export in /brand/apgos. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+  Generating static pages using 7 workers (42/56) 
+⚠ Unsupported metadata themeColor is configured in metadata export in /dev/pricing-proof. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata themeColor is configured in metadata export in /brand/fyhair. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata themeColor is configured in metadata export in /dev/resident-move-out-stages. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata themeColor is configured in metadata export in /enquiry. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata themeColor is configured in metadata export in /guide. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata themeColor is configured in metadata export in /profile. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata themeColor is configured in metadata export in /admin/change-password. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+⚠ Unsupported metadata themeColor is configured in metadata export in /admin/change-password. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+✓ Generating static pages using 7 workers (56/56) in 308ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /about
+├ ƒ /account/bookings
+├ ƒ /account/change-password
+├ ƒ /account/favorites
+├ ƒ /account/kyc
+├ ƒ /account/payments
+├ ƒ /account/payments/[paymentId]/receipt
+├ ƒ /account/profile
+├ ƒ /account/resident
+├ ƒ /account/resident/history/[bookingId]
+├ ƒ /account/resident/invoices/[invoiceId]
+├ ƒ /account/resident/pay-electricity/[invoiceId]
+├ ƒ /account/resident/pay-ps4/[membershipId]
+├ ƒ /account/resident/pay-rent/[invoiceId]
+├ ƒ /account/resident/ps4/new
+├ ƒ /account/resident/request-vacating/[bookingId]
+├ ƒ /account/set-password
+├ ƒ /account/wallet
+├ ƒ /activity
+├ ƒ /admin
+├ ƒ /admin/actions
+├ ƒ /admin/analytics
+├ ƒ /admin/beds
+├ ƒ /admin/billing
+├ ƒ /admin/billing/cycle-migration
+├ ƒ /admin/billing/electricity/generate
+├ ƒ /admin/billing/rent-payment-map
+├ ƒ /admin/bookings
+├ ƒ /admin/bookings/[bookingId]
+├ ƒ /admin/bookings/[bookingId]/financial
+├ ƒ /admin/bookings/new
+├ ○ /admin/change-password
+├ ƒ /admin/checkout-settlements
+├ ƒ /admin/checkout-settlements/[id]
+├ ƒ /admin/collections
+├ ƒ /admin/collections/pg/[pgId]
+├ ƒ /admin/collections/pg/[pgId]/resident/[residentId]
+├ ƒ /admin/collections/reminders
+├ ƒ /admin/collections/reports
+├ ƒ /admin/dashboard
+├ ƒ /admin/deployments
+├ ƒ /admin/deposit-express
+├ ƒ /admin/deposits
+├ ƒ /admin/deposits/[bookingId]
+├ ƒ /admin/deposits/add
+├ ƒ /admin/deposits/advance
+├ ƒ /admin/deposits/audit
+├ ƒ /admin/deposits/collected
+├ ƒ /admin/electricity
+├ ƒ /admin/electricity/bills/[id]
+├ ƒ /admin/electricity/dashboard
+├ ƒ /admin/electricity/duplicates
+├ ƒ /admin/electricity/invoices/[invoiceId]/as-resident
+├ ƒ /admin/electricity/ledger
+├ ƒ /admin/electricity/new
+├ ƒ /admin/emails
+├ ƒ /admin/express-booking
+├ ƒ /admin/extensions
+├ ƒ /admin/floors
+├ ○ /admin/forgot-password
+├ ƒ /admin/guide
+├ ƒ /admin/health
+├ ƒ /admin/invoices
+├ ƒ /admin/invoices/[invoiceId]
+├ ƒ /admin/invoices/[invoiceId]/print
+├ ƒ /admin/invoices/rent-payment-map
+├ ƒ /admin/kyc
+├ ƒ /admin/kyc/[submissionId]
+├ ƒ /admin/login
+├ ƒ /admin/monitoring
+├ ƒ /admin/notifications
+├ ƒ /admin/occupancy
+├ ƒ /admin/operations
+├ ƒ /admin/operations/payment-reviews
+├ ƒ /admin/operations/pg/[pgId]
+├ ƒ /admin/operations/pg/[pgId]/resident/[residentId]
+├ ƒ /admin/operations/rent-payment-map
+├ ƒ /admin/operations/residents
+├ ƒ /admin/overview
+├ ƒ /admin/overview/analytics
+├ ƒ /admin/overview/health
+├ ƒ /admin/overview/operations
+├ ƒ /admin/overview/pg/[pgId]
+├ ƒ /admin/overview/revenue
+├ ƒ /admin/panel
+├ ƒ /admin/payment-review/[reviewKey]
+├ ƒ /admin/payments
+├ ƒ /admin/pgs
+├ ƒ /admin/pgs/[pgId]/collections
+├ ƒ /admin/pgs/[pgId]/edit
+├ ƒ /admin/pgs/[pgId]/listing
+├ ƒ /admin/pgs/[pgId]/map
+├ ƒ /admin/pgs/[pgId]/pricing
+├ ƒ /admin/pgs/[pgId]/rooms
+├ ƒ /admin/pgs/new
+├ ƒ /admin/playstation
+├ ƒ /admin/pricing
+├ ƒ /admin/refunds
+├ ƒ /admin/refunds/receipt/[settlementId]
+├ ƒ /admin/refunds/receipt/[settlementId]/print
+├ ƒ /admin/rent
+├ ƒ /admin/requests
+├ ○ /admin/reset-password
+├ ƒ /admin/residents
+├ ƒ /admin/residents/[customerId]
+├ ƒ /admin/residents/kyc
+├ ƒ /admin/residents/kyc/[submissionId]
+├ ƒ /admin/residents/timeline
+├ ƒ /admin/revenue
+├ ƒ /admin/revenue/billing
+├ ƒ /admin/revenue/pg/[pgId]
+├ ƒ /admin/revenue/pg/[pgId]/resident/[residentId]
+├ ƒ /admin/revenue/referral-withdrawals
+├ ƒ /admin/revenue/rent-due
+├ ƒ /admin/rooms
+├ ƒ /admin/settings
+├ ƒ /admin/settings/business
+├ ƒ /admin/settings/notifications
+├ ƒ /admin/settings/payments
+├ ƒ /admin/settings/policies
+├ ƒ /admin/system
+├ ƒ /admin/system/auth-integrity
+├ ƒ /admin/system/bed-audit
+├ ƒ /admin/system/billing-integrity
+├ ƒ /admin/system/developer
+├ ƒ /admin/system/financial-audit
+├ ƒ /admin/system/health-report
+├ ƒ /admin/system/pricing-health
+├ ƒ /admin/system/production-audit
+├ ƒ /admin/system/push-diagnostics
+├ ƒ /admin/system/recalculate-financial
+├ ƒ /admin/uploads
+├ ƒ /admin/vacating
+├ ƒ /admin/vacating/[requestId]/settlement-statement
+├ ƒ /admin/vacating/[requestId]/settlement-statement/print
+├ ƒ /analytics
+├ ƒ /api/admin/analytics/details
+├ ƒ /api/admin/analytics/live
+├ ƒ /api/admin/analytics/summary
+├ ƒ /api/admin/booking-stay-date-integrity
+├ ƒ /api/admin/cache-diagnostics
+├ ƒ /api/admin/checkout-investigation
+├ ƒ /api/admin/checkout-settlement/[id]/image/[kind]
+├ ƒ /api/admin/checkout-settlements/[id]/room-electricity-preview
+├ ƒ /api/admin/deployments
+├ ƒ /api/admin/deposits/[bookingId]/correct-summary
+├ ƒ /api/admin/electricity-bill-jobs/[jobId]
+├ ƒ /api/admin/health
+├ ƒ /api/admin/impersonation/end
+├ ƒ /api/admin/impersonation/start
+├ ƒ /api/admin/impersonation/status
+├ ƒ /api/admin/kyc/[kycId]/aadhaar-pdf
+├ ƒ /api/admin/kyc/aadhaar-pdf-bulk
+├ ƒ /api/admin/live
+├ ƒ /api/admin/monitoring
+├ ƒ /api/admin/notifications
+├ ƒ /api/admin/notifications/read
+├ ƒ /api/admin/payment-proof/[kind]/[id]
+├ ƒ /api/admin/payments
+├ ƒ /api/admin/post-login-probe
+├ ƒ /api/admin/resident-request/[id]/image/[kind]
+├ ƒ /api/admin/residents/search
+├ ƒ /api/admin/rooms/[id]/electricity-reconciliation
+├ ƒ /api/admin/rooms/[id]/last-electricity-reading
+├ ƒ /api/admin/smoke-checks
+├ ƒ /api/analytics/event
+├ ƒ /api/analytics/heartbeat
+├ ƒ /api/analytics/track
+├ ƒ /api/auth/admin/change-password
+├ ƒ /api/auth/admin/forgot-password
+├ ƒ /api/auth/admin/login
+├ ƒ /api/auth/admin/reset-password
+├ ƒ /api/auth/customer/booking/otp/send
+├ ƒ /api/auth/customer/booking/otp/verify
+├ ƒ /api/auth/customer/change-password
+├ ƒ /api/auth/customer/email/lookup
+├ ƒ /api/auth/customer/email/send
+├ ƒ /api/auth/customer/email/verify
+├ ƒ /api/auth/customer/forgot-password
+├ ƒ /api/auth/customer/forgot-password/profile
+├ ƒ /api/auth/customer/forgot-password/verify
+├ ƒ /api/auth/customer/login
+├ ƒ /api/auth/customer/phone/lookup
+├ ƒ /api/auth/customer/session/refresh
+├ ƒ /api/auth/customer/sessions
+├ ƒ /api/auth/customer/set-password
+├ ƒ /api/auth/customer/signup/reset
+├ ƒ /api/auth/customer/signup/status
+├ ƒ /api/auth/logout
+├ ƒ /api/availability
+├ ƒ /api/beds/[bedId]/availability
+├ ƒ /api/beds/[bedId]/interest
+├ ƒ /api/beds/[bedId]/reserve-quote
+├ ƒ /api/booking/quote
+├ ƒ /api/capital/export/[type]
+├ ƒ /api/capital/files/[id]
+├ ƒ /api/capital/health
+├ ƒ /api/capital/search
+├ ƒ /api/cron/automation
+├ ƒ /api/cron/billing-production-verify
+├ ƒ /api/cron/booking-stay-date-integrity
+├ ƒ /api/cron/bootstrap-admin
+├ ƒ /api/cron/cleanup-neon-preview-branches
+├ ƒ /api/cron/clear-pg-occupancy
+├ ƒ /api/cron/collections-reminders
+├ ƒ /api/cron/deploy-watchdog
+├ ƒ /api/cron/electricity-readings-without-bills
+├ ƒ /api/cron/expire-bed-reserves
+├ ƒ /api/cron/expire-fixed-stays
+├ ƒ /api/cron/financial-reconciliation
+├ ƒ /api/cron/generate-monthly-rent
+├ ƒ /api/cron/health-brain-integrity
+├ ƒ /api/cron/june-electricity-integrity-repair
+├ ƒ /api/cron/mark-pg-occupancy
+├ ƒ /api/cron/owner-os-event-inbox
+├ ƒ /api/cron/payment-proof-rejection-verify
+├ ƒ /api/cron/production-data-audit
+├ ƒ /api/cron/release-holds
+├ ƒ /api/cron/repair-apg-2026-0036
+├ ƒ /api/cron/repair-booking-rent-invoices
+├ ƒ /api/cron/resident-brain-integrity
+├ ƒ /api/cron/room-os-outbox
+├ ƒ /api/cron/shantinagar-july-rent-production
+├ ƒ /api/cron/shantinagar-pricing-fix
+├ ƒ /api/customer/payment-screenshot
+├ ƒ /api/electricity-invoice/[id]/payment-proof
+├ ƒ /api/hair/vendor-files
+├ ƒ /api/hair/vendors/[id]/statement/pdf
+├ ƒ /api/health
+├ ƒ /api/invoices/[ref]/pdf
+├ ƒ /api/invoices/share/[shareToken]/pdf
+├ ƒ /api/kyc/documents/[submissionId]/[kind]
+├ ƒ /api/owner/health
+├ ƒ /api/owner/payments
+├ ƒ /api/payment-proof/booking/[id]
+├ ƒ /api/payment-proof/deposit-link/[id]
+├ ƒ /api/payment-proof/electricity/[id]
+├ ƒ /api/payment-proof/extension/[id]
+├ ƒ /api/payment-proof/playstation/[id]
+├ ƒ /api/payment-proof/rent/[id]
+├ ƒ /api/payment-record
+├ ƒ /api/payment-record/[id]
+├ ƒ /api/payment-record/booking
+├ ƒ /api/payments/razorpay/status
+├ ƒ /api/payments/razorpay/verify
+├ ƒ /api/pg/[id]/payment-categories
+├ ƒ /api/platform/stripe/webhook
+├ ƒ /api/playstation/membership/[membershipId]/payment-proof
+├ ƒ /api/push/diagnostics
+├ ƒ /api/push/subscribe
+├ ƒ /api/push/test
+├ ƒ /api/push/unsubscribe
+├ ƒ /api/push/vapid-public-key
+├ ƒ /api/rent-invoice/[id]/payment-proof
+├ ƒ /api/resident/referrals/summary
+├ ƒ /api/resident/referrals/withdraw
+├ ƒ /api/stay-extension/[id]/payment-proof
+├ ƒ /api/vacating/[requestId]/settlement-statement/pdf
+├ ƒ /api/webhooks/mock
+├ ƒ /api/webhooks/razorpay
+├ ƒ /api/webhooks/vercel
+├ ƒ /assets
+├ ƒ /assets/[id]
+├ ƒ /assets/new
+├ ƒ /auth/login
+├ ƒ /booking/[bookingCode]
+├ ƒ /booking/[bookingCode]/extend
+├ ƒ /booking/[bookingCode]/extend/[extensionId]/pay
+├ ƒ /booking/[bookingCode]/pay
+├ ƒ /booking/[bookingCode]/payment-success
+├ ƒ /booking/new
+├ ○ /brand/apgos
+├ ○ /brand/awesomepg
+├ ○ /brand/capital
+├ ○ /brand/fyhair
+├ ƒ /capital
+├ ƒ /dashboard
+├ ƒ /dev/booking-funnel-ui
+├ ƒ /dev/pricing-proof
+├ ƒ /dev/resident-move-out-stages
+├ ƒ /documents
+├ ƒ /enquiry
+├ ƒ /expenses
+├ ƒ /fyh/access-denied
+├ ƒ /fyh/advance-payment
+├ ƒ /fyh/api/invoices/[invoiceId]/print
+├ ƒ /fyh/api/invoices/public/[invoiceNumber]/print
+├ ƒ /fyh/api/office-location/geocode
+├ ƒ /fyh/api/quick-sale/customers
+├ ƒ /fyh/api/search
+├ ƒ /fyh/api/staff/qr
+├ ƒ /fyh/appointments
+├ ƒ /fyh/attendance
+├ ƒ /fyh/attendance/manage
+├ ƒ /fyh/attendance/map
+├ ƒ /fyh/auth/login
+├ ƒ /fyh/billing
+├ ƒ /fyh/billing/[invoiceId]
+├ ƒ /fyh/billing/invoices
+├ ƒ /fyh/brand-concepts
+├ ƒ /fyh/customers
+├ ƒ /fyh/customers/[id]
+├ ƒ /fyh/customers/new
+├ ƒ /fyh/dashboard
+├ ƒ /fyh/dashboard/front-desk
+├ ƒ /fyh/dashboard/revenue
+├ ƒ /fyh/dashboard/staff-performance
+├ ƒ /fyh/expenses
+├ ƒ /fyh/expenses/salary
+├ ƒ /fyh/i/[invoiceNumber]
+├ ƒ /fyh/inventory
+├ ƒ /fyh/inventory/adjustments
+├ ƒ /fyh/inventory/adjustments/new
+├ ƒ /fyh/inventory/movements
+├ ƒ /fyh/inventory/on-floor
+├ ƒ /fyh/inventory/purchases
+├ ƒ /fyh/inventory/purchases/[id]
+├ ƒ /fyh/inventory/purchases/new
+├ ƒ /fyh/inventory/stock
+├ ƒ /fyh/inventory/transfers
+├ ƒ /fyh/inventory/vendors
+├ ƒ /fyh/inventory/vendors/[id]
+├ ƒ /fyh/inventory/vendors/new
+├ ƒ /fyh/invoice/[invoiceNumber]
+├ ƒ /fyh/landing
+├ ƒ /fyh/loyalty
+├ ƒ /fyh/me
+├ ƒ /fyh/membership-packages
+├ ƒ /fyh/memberships
+├ ƒ /fyh/packages
+├ ƒ /fyh/products
+├ ƒ /fyh/products/[id]
+├ ƒ /fyh/products/new
+├ ƒ /fyh/profile
+├ ƒ /fyh/purchases
+├ ƒ /fyh/purchases/[id]
+├ ƒ /fyh/purchases/[id]/edit
+├ ƒ /fyh/purchases/new
+├ ƒ /fyh/quick-sale
+├ ƒ /fyh/reports
+├ ƒ /fyh/reports/customers/loyalty
+├ ƒ /fyh/reports/customers/memberships
+├ ƒ /fyh/reports/customers/packages
+├ ƒ /fyh/reports/finance/discounts
+├ ƒ /fyh/reports/finance/gst
+├ ƒ /fyh/reports/finance/payments
+├ ƒ /fyh/reports/inventory/low-stock
+├ ƒ /fyh/reports/inventory/products
+├ ƒ /fyh/reports/inventory/stock
+├ ƒ /fyh/reports/revenue/daily
+├ ƒ /fyh/reports/revenue/monthly
+├ ƒ /fyh/reports/revenue/yearly
+├ ƒ /fyh/reports/staff/[metric]
+├ ƒ /fyh/salon-software
+├ ƒ /fyh/select-organization
+├ ƒ /fyh/select-organization/bind
+├ ƒ /fyh/services
+├ ƒ /fyh/services/[id]
+├ ƒ /fyh/services/new
+├ ƒ /fyh/settings
+├ ƒ /fyh/settings/appearance
+├ ƒ /fyh/settings/attendance
+├ ƒ /fyh/settings/billing
+├ ƒ /fyh/settings/communication
+├ ƒ /fyh/settings/gst-invoice
+├ ƒ /fyh/settings/historical-import
+├ ƒ /fyh/settings/inventory
+├ ƒ /fyh/settings/permissions
+├ ƒ /fyh/settings/printer
+├ ƒ /fyh/settings/salon
+├ ƒ /fyh/settings/security
+├ ƒ /fyh/settings/whatsapp
+├ ƒ /fyh/staff
+├ ƒ /fyh/staff/[employeeId]
+├ ƒ /fyh/staff/[id]/performance
+├ ƒ /fyh/staff/performance
+├ ƒ /fyh/subscribe
+├ ƒ /fyh/team
+├ ƒ /fyh/team/[memberId]
+├ ƒ /fyh/vendors
+├ ƒ /fyh/vendors/[id]
+├ ƒ /fyh/vendors/[id]/edit
+├ ƒ /fyh/vendors/new
+├ ƒ /fyh/workforce
+├ ƒ /fyh/workforce/home
+├ ƒ /fyh/workforce/operations
+├ ƒ /guide
+├ ƒ /i/[shareToken]
+├ ƒ /ledger
+├ ƒ /login
+├ ƒ /owner/accounts
+├ ƒ /owner/assets
+├ ƒ /owner/assets/[id]
+├ ƒ /owner/auth/login
+├ ƒ /owner/cashflow
+├ ƒ /owner/dashboard
+├ ƒ /owner/expenses
+├ ƒ /owner/income
+├ ƒ /owner/integrations
+├ ƒ /owner/investments
+├ ƒ /owner/liabilities
+├ ƒ /owner/liabilities/[id]
+├ ƒ /owner/liabilities/new
+├ ƒ /owner/net-worth
+├ ƒ /owner/properties/new
+├ ƒ /owner/settings
+├ ƒ /owner/wealth
+├ ƒ /pay/[linkId]
+├ ƒ /payments
+├ ƒ /pgs
+├ ƒ /pgs/[pgSlug]
+├ ƒ /pgs/[pgSlug]/rooms/[roomId]
+├ ƒ /pgs/compare
+├ ƒ /platform/admin
+├ ƒ /platform/admin/activity
+├ ƒ /platform/admin/locations
+├ ƒ /platform/admin/onboarding
+├ ƒ /platform/admin/organizations
+├ ƒ /platform/admin/organizations/[id]
+├ ƒ /platform/admin/organizations/[id]/locations
+├ ƒ /platform/admin/organizations/[id]/members
+├ ƒ /platform/admin/organizations/new
+├ ƒ /platform/admin/payment-submissions
+├ ƒ /platform/admin/plans
+├ ƒ /platform/admin/search
+├ ƒ /platform/admin/subscriptions
+├ ƒ /platform/admin/users
+├ ƒ /platform/auth/accept-invite
+├ ƒ /platform/auth/login
+├ ƒ /platform/dashboard
+├ ƒ /profile
+├ ƒ /reports
+├ ƒ /reports/[type]
+├ ƒ /reserve/new
+├ ƒ /resident/invoices/[ref]
+├ ƒ /search
+└ ƒ /settings
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

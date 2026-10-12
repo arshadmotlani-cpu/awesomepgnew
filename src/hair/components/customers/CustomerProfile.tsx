@@ -92,6 +92,7 @@ export function CustomerProfile({
   creditHistory,
   timelineLoading = false,
   canReceiveAdvance = false,
+  initialTab = 'overview',
 }: {
   customer: FyhCustomer;
   notes: FyhCustomerNote[];
@@ -101,8 +102,9 @@ export function CustomerProfile({
   creditHistory: CustomerCreditHistoryRow[];
   timelineLoading?: boolean;
   canReceiveAdvance?: boolean;
+  initialTab?: TabId;
 }) {
-  const [tab, setTab] = useState<TabId>('overview');
+  const [tab, setTab] = useState<TabId>(initialTab);
   const [timelineFilter, setTimelineFilter] = useState<UnifiedTimelineFilter>('all');
   const [timelineVisibleCount, setTimelineVisibleCount] = useState(DEFAULT_TIMELINE_PAGE_SIZE);
   const [updateState, updateAction, updatePending] = useActionState(

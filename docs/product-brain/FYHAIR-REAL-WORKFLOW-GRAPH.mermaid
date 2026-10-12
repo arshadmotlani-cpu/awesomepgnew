@@ -1,0 +1,106 @@
+%% FYHAIR real business workflow — forensic extraction 2026-10-04
+%% Arrows are implemented code paths. Placeholder nodes are labeled.
+
+flowchart TB
+  subgraph Entry["How the desk starts"]
+    QA["9-dot Quick Actions"]
+    QA --> ES["Express Sale → /quick-sale"]
+    QA --> ADV["Advance Payment modal"]
+    QA --> EXP["Add Expense modal"]
+    CAL["/appointments calendar"]
+  end
+
+  subgraph Appt["Appointment — optional"]
+    CAL --> CREATE["createAppointment"]
+    CREATE --> APPTROW["fyh_appointments + fyh_appointment_services"]
+    APPTROW --> ARRIVE["Status arrived / in_service / completed"]
+    ARRIVE --> RAISE["Raise Sale — checkoutAppointmentAction"]
+    RAISE --> ESAPPT["/quick-sale?appointmentId"]
+  end
+
+  subgraph Cust["Express Sale — customer step"]
+    ES --> FIND["Find customer"]
+    ESAPPT --> SALE
+    FIND --> SRCH["FyhCustomerSearch name / phone / code"]
+    FIND --> NEW["Add client — saved immediately source walk_in"]
+    FIND --> HOLD["Held bills — resume only"]
+    SRCH --> SALE["Sale step"]
+    NEW --> SALE
+    HOLD --> SALE
+  end
+
+  subgraph Sale["Basket"]
+    SALE --> CAT["Client filter of loadBillableCatalog"]
+    CAT --> LINES["Lines: service product package membership"]
+    LINES --> STAFF["Staff: required on services and prepaid redemptions"]
+    LINES --> PRICE["priceBasket GST-inclusive"]
+    PRICE --> MEM["Membership bps via computeRedemptions"]
+    PRICE --> PKG["Available Services → prepaid ₹0 lines"]
+  end
+
+  subgraph Pay["Payment"]
+    PRICE --> CASH["Cash"]
+    PRICE --> UPI["UPI"]
+    PRICE --> CARD["Card"]
+    PRICE --> WALL["Use credit — method wallet"]
+    PRICE --> DUE["Mark as Due — partial or unpaid"]
+    CASH --> COMPLETE["Complete Sale"]
+    UPI --> COMPLETE
+    CARD --> COMPLETE
+    WALL --> COMPLETE
+    DUE --> COMPLETE
+  end
+
+  subgraph SSOT["Billing SSOT"]
+    COMPLETE --> ACT["completeQuickSaleAction"]
+    ACT --> CFB["checkoutFromBasket"]
+    CFB --> INV["fyh_invoices + lines + payments"]
+    CFB --> ATTR["fyh_invoice_line_attributions"]
+    CFB --> LED["fyh_financial_ledger"]
+    CFB --> TL["fyh_customer_timeline bill event"]
+  end
+
+  subgraph PaidOnly["Only when status paid or total is 0"]
+    CFB --> PAID{"Fully paid?"}
+    PAID -->|yes| SIDE["applyPaidSideEffects"]
+    PAID -->|no| OPEN["Receivable stays open — no stock no commission"]
+    SIDE --> STK["applyMovement consumption + sale"]
+    SIDE --> COM["fyh_commission_entries"]
+    SIDE --> ENT["Sell membership / package if those lines exist"]
+    SIDE --> REDEEM["redeemPackageCredits for prepaid lines"]
+    SIDE --> STATS["Customer visit stats"]
+    SIDE --> APPTPAID["Appointment status paid"]
+  end
+
+  subgraph After["After commit"]
+    CFB --> OK["Success dialog"]
+    OK --> PRINT["Print / PDF / WhatsApp public /i/ link"]
+    OK --> NEXT["Done → Find customer"]
+    OK --> FIX["Edit bill or Cancel bill — both call cancelInvoice"]
+    FIX --> VOID["Invoice status void — lines payments attributions stay"]
+    VOID --> IGNORE["Wallet and due ignore this invoice ledger rows"]
+    VOID -.->|not reversed| STK
+    VOID -.->|not reversed| COM
+    FIX -->|edit only| BLANK["/quick-sale with no lines copied"]
+    ACT -.->|error| RETRY["Error on bar — transaction rolled back"]
+  end
+
+  ATTR --> RPT["Staff and revenue reports"]
+  STK --> STOCKUI["/inventory/stock movements"]
+  LED --> PROFILE["Customer advance and due"]
+
+  ADV --> WCRED["advance_payment invoice + wallet credit — no sale lines"]
+  WCRED --> WALL
+
+  subgraph WalkIn["Walk-in is not one entity"]
+    CALWI["Calendar checkbox source walk_in status arrived"]
+    CALWI --> APPTROW
+    ES --> QSINV["Invoice source quick_sale — no appointment row"]
+  end
+
+  subgraph NotOnPos["Not on compact Express Sale"]
+    HOLDCREATE["Hold Bill button — code exists UI not mounted"]
+    GIFT["Gift card — throws if used on register pay"]
+    POINTS["reward_points — no writer"]
+    XFER["/inventory/transfers — placeholder"]
+  end

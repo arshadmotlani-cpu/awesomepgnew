@@ -47,3 +47,12 @@ test('rent payment map invoice query includes paid status for canonical reconcil
   const selection = read('src/lib/billing/rentPaymentMapInvoiceSelection.ts');
   assert.match(selection, /'paid'/);
 });
+
+test('rent payment map classifies beds via projectInvoice like collections queue', () => {
+  const service = read('src/services/rentPaymentMap.ts');
+  const status = read('src/lib/billing/rentPaymentMapStatus.ts');
+  const collections = read('src/lib/billing/collectionsQueue.ts');
+  assert.match(service, /projectInvoice/);
+  assert.match(status, /effectiveStatus/);
+  assert.match(collections, /projectInvoice/);
+});

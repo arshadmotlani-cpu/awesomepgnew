@@ -17,9 +17,12 @@ import { ADVANCE_RECEIVE_PERMISSION } from '@/src/hair/lib/advancePaymentPermiss
 
 type Props = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 };
 
-async function CustomerAccountData({ id }: { id: string }) {
+const PROFILE_TABS = ['overview', 'details', 'salon', 'loyalty', 'notes', 'timeline'] as const;
+
+async function CustomerAccountData({ id, tab }: { id: string; tab?: string }) {
   const ctx = await getTenantContextForPage();
   const admin = await requireHairAuthPage();
   const canReceiveAdvance = hasPermission(admin, ADVANCE_RECEIVE_PERMISSION);
@@ -42,6 +45,7 @@ async function CustomerAccountData({ id }: { id: string }) {
       creditSummary={creditSummary}
       creditHistory={creditHistory}
       canReceiveAdvance={canReceiveAdvance}
+      initialTab={PROFILE_TABS.includes(tab as (typeof PROFILE_TABS)[number]) ? (tab as (typeof PROFILE_TABS)[number]) : 'overview'}
     />
   );
 }
@@ -60,12 +64,13 @@ function CustomerProfileSkeleton() {
   );
 }
 
-export default async function CustomerDetailPage({ params }: Props) {
+export default async function CustomerDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const { tab } = await searchParams;
 
   return (
     <Suspense fallback={<CustomerProfileSkeleton />}>
-      <CustomerAccountData id={id} />
+      <CustomerAccountData id={id} tab={tab} />
     </Suspense>
   );
 }

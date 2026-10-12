@@ -178,6 +178,8 @@ function lineSubtitleForKind(kind: string): string | null {
       return 'PlayStation membership';
     case 'company_reimbursement':
       return 'Meals included in package';
+    case 'standalone_accommodation':
+      return null;
     case 'custom':
     case 'damage':
     case 'penalty':

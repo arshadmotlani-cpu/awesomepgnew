@@ -1,0 +1,183 @@
+%% Salon Software — Architecture graphs (FYHAIR = reference salon)
+%% Render in Mermaid Live or IDE preview. Logical subgraphs — not every table.
+
+flowchart TB
+  subgraph FYTECH["FYTECH Ecosystem"]
+    PlatformDB[(Platform Postgres)]
+    HairDB[(Hair Postgres fyh_* + wf_*)]
+  end
+
+  subgraph PlatformAdmin["Platform Administration — NOT salon day-to-day"]
+    PA_Orgs[Organizations]
+    PA_Locs[Locations]
+    PA_Subs[Subscriptions / Plans]
+    PA_Users[Platform Users + Invites]
+    PA_Audit[Activity / Search]
+    PA_Onboard[Onboarding Wizard]
+  end
+
+  PlatformDB --> PlatformAdmin
+  PlatformAdmin -->|org_id location_id UUID mirror| HairDB
+
+  subgraph SalonTenant["Salon Tenant Application — Hair host"]
+    TC[TenantContext + FYH_SAAS_TENANT flag]
+    Auth[Auth: Platform user / wf_employee / legacy fyh_admin]
+    TC --> Auth
+  end
+
+  HairDB --> SalonTenant
+
+  subgraph Modules["Salon Modules"]
+    M_Dash[Dashboard]
+    M_CRM[Customers]
+    M_Apt[Appointments]
+    M_Bill[Billing / Quick Sale / Advance]
+    M_WF[Workforce / Staff / Attendance]
+    M_Inv[Inventory / Purchases / Vendors]
+    M_Loy[Loyalty / Memberships / Packages]
+    M_Rep[Reports]
+    M_Cfg[Configuration: Services Products Memberships Packages]
+    M_Set[Settings]
+    M_Exp[Expenses]
+  end
+
+  Auth --> Modules
+
+  subgraph BillingSSOT["Billing SSOT"]
+    Basket[domain/basket priceBasket]
+    Checkout[checkoutFromBasket pipeline]
+    InvSvc[services/invoices.ts]
+    Settle[invoiceSettlement summarize]
+    Attr[fyh_invoice_line_attributions]
+    Basket --> Checkout --> InvSvc --> Settle
+    Checkout --> Attr
+  end
+
+  M_Bill --> BillingSSOT
+  M_Apt -->|checkout redirect| M_Bill
+
+  subgraph InventorySSOT["Inventory SSOT"]
+    Stock[services/stock applyMovement]
+    PO[purchaseBrain + legacy PO UI]
+    Floor[floorStock read-only UI]
+    Stock --> M_Inv
+    PO --> M_Inv
+  end
+
+  subgraph WorkforceEngine["Workforce Engine — same Hair DB"]
+    WF_Emp[wf_employees]
+    WF_Perm[permissions library 67 keys]
+    WF_Bridge[hairAdminBridge lossy]
+    FYH_Staff[fyh_staff booking FK]
+    WF_Emp --> WF_Perm
+    WF_Perm --> WF_Bridge
+    FYH_Staff --> M_Apt
+    WF_Emp --> M_WF
+  end
+
+  M_WF --> WorkforceEngine
+
+  subgraph SideEffects["Side effects on pay"]
+    Ledger[fyh_financial_ledger]
+    Comm[fyh_commission_entries legacy]
+    Notif[fyh_notification_outbox stub]
+    InvSvc --> Ledger
+    InvSvc --> Comm
+    InvSvc --> Notif
+  end
+
+  BillingSSOT --> SideEffects
+
+---
+
+flowchart LR
+  subgraph CustomerJourney["Customer journey — implemented path"]
+    C1[Customer profile fyh_customers]
+    C2[Appointment fyh_appointments]
+    C3[Quick Sale basket checkoutFromBasket]
+    C4[Invoice fyh_invoices]
+    C5[Payments fyh_invoice_payments]
+    C6[Attribution + commission + ledger]
+    C7[Timeline / loyalty partial]
+    C1 --> C2 --> C3 --> C4 --> C5 --> C6 --> C7
+  end
+
+  subgraph MembershipJourney["Membership / package — partial"]
+    MP[Plans configuration]
+    Sale[Sale on Quick Sale pay]
+    Redeem[Redemption at checkout]
+    MP --> Sale
+    Sale -.->|next phase| Redeem
+  end
+
+  subgraph InventoryJourney["Inventory — partial"]
+    Prod[fyh_products]
+    Purch[Vendor purchases / PO dual UI]
+    Mov[fyh_stock_movements]
+    Use[Service consumables on appointment pay]
+    Prod --> Purch --> Mov
+    Mov --> Use
+  end
+
+---
+
+flowchart TB
+  subgraph ChangeSafety["Change impact — Billing node"]
+    B[Billing / checkoutFromBasket]
+    B --> I[Invoices + lines + payments]
+    B --> A[Attributions / staff performance]
+    B --> L[Financial ledger]
+    B --> C[Commission accrual]
+    B --> R[Reports revenue + GST]
+    B --> N[Notifications outbox]
+    B --> Inv[Stock consumption appointment path]
+    B --> Cust[Customer wallet / advance]
+  end
+
+  subgraph TenantRisk["Tenant isolation — review if touching"]
+    T1[orgFilter locationFilter]
+    T2[catalog adapter loadBillableCatalog]
+    T3[public invoice by number]
+    T4[nullable organization_id columns]
+  end
+
+
+---
+
+%% Terminology: COMPANY = For Your Technologies; PRODUCT = Salon Software; FYHAIR = reference salon. See TERMINOLOGY.md
+
+flowchart TB
+  subgraph SalonSoftwareSaaS["Target SaaS hierarchy (Salon Software)"]
+    FYT["For Your Technologies"]
+    SS["Salon Software"]
+    FYT --> SS
+    subgraph Tenants["Organizations / Salons"]
+      direction LR
+      FYH["FYHAIR — Reference Salon / Current Implementation"]
+      SB["Salon B — Future Tenant"]
+      SC["Salon C — Future Tenant"]
+    end
+    SS --> Tenants
+  end
+
+
+---
+
+flowchart TB
+  subgraph CoreProductSpine["Salon Software — core workflow (product workshop)"]
+    direction TB
+    S1[Salon / location context]
+    S2[Customer]
+    S3[Appointment or walk-in]
+    S4[Service / product]
+    S5[Staff]
+    S6[Basket]
+    S7[Pricing / tax / discount]
+    S8[Payment]
+    S9[Invoice]
+    S10[Business records]
+    S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> S9 --> S10
+  end
+
+%% Interactive browser map: /system-map (Hair host) — see src/hair/system-map/
+
