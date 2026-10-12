@@ -11,6 +11,10 @@ import {
   hairCheckoutOperationsTableReady,
 } from '@/src/hair/lib/checkoutSchemaCapabilities';
 import {
+  isStaleCheckoutOperation,
+  STALE_CHECKOUT_OPERATION_ERROR,
+} from '@/src/hair/lib/checkoutOperationLease';
+import {
   checkoutFromBasket,
   type CheckoutFromBasketInput,
   type CheckoutFromBasketResult,
@@ -34,6 +38,81 @@ export type ExecuteBasketCheckoutParams = CheckoutFromBasketInput & {
   attemptKey: string | null | undefined;
   ctx?: TenantContext | null;
 };
+
+type ClaimLeaseResult = 'claimed' | 'in_progress';
+
+async function claimCheckoutOperationLease(params: {
+  attemptKey: string;
+  correlationId: string;
+  ctx: TenantContext | null;
+  writeDefaults: ReturnType<typeof tenantWriteDefaults>;
+}): Promise<ClaimLeaseResult> {
+  const { attemptKey, correlationId, ctx, writeDefaults } = params;
+  const [existing] = await hairDb
+    .select()
+    .from(fyhCheckoutOperations)
+    .where(
+      and(
+        orgFilter(fyhCheckoutOperations.organizationId, ctx),
+        eq(fyhCheckoutOperations.attemptKey, attemptKey),
+      ),
+    )
+    .limit(1);
+
+  if (existing?.status === 'processing' && !existing.invoiceId) {
+    if (!isStaleCheckoutOperation(existing.createdAt)) {
+      return 'in_progress';
+    }
+    await hairDb
+      .update(fyhCheckoutOperations)
+      .set({ status: 'failed', errorMessage: STALE_CHECKOUT_OPERATION_ERROR })
+      .where(
+        and(
+          orgFilter(fyhCheckoutOperations.organizationId, ctx),
+          eq(fyhCheckoutOperations.attemptKey, attemptKey),
+        ),
+      );
+  }
+
+  if (existing?.status === 'failed') {
+    await hairDb
+      .update(fyhCheckoutOperations)
+      .set({
+        status: 'processing',
+        correlationId,
+        errorMessage: null,
+        invoiceId: null,
+        committedAt: null,
+      })
+      .where(
+        and(
+          orgFilter(fyhCheckoutOperations.organizationId, ctx),
+          eq(fyhCheckoutOperations.attemptKey, attemptKey),
+        ),
+      );
+    return 'claimed';
+  }
+
+  if (existing?.status === 'committed') {
+    return 'in_progress';
+  }
+
+  try {
+    await hairDb.insert(fyhCheckoutOperations).values({
+      ...writeDefaults,
+      attemptKey,
+      kind: 'basket_checkout',
+      status: 'processing',
+      correlationId,
+    });
+    return 'claimed';
+  } catch {
+    const again = await lookupBasketCheckoutByAttemptKey(attemptKey, ctx);
+    if (again?.invoiceId) return 'in_progress';
+    if (again?.outcome === 'ambiguous') return 'in_progress';
+    return 'claimed';
+  }
+}
 
 async function findInvoiceIdByAttemptKey(
   attemptKey: string,
@@ -90,6 +169,32 @@ export async function lookupBasketCheckoutByAttemptKey(
     )
     .limit(1);
   if (!op) return null;
+  if (
+    op.status === 'processing' &&
+    !op.invoiceId &&
+    isStaleCheckoutOperation(op.createdAt)
+  ) {
+    await hairDb
+      .update(fyhCheckoutOperations)
+      .set({ status: 'failed', errorMessage: STALE_CHECKOUT_OPERATION_ERROR })
+      .where(
+        and(
+          orgFilter(fyhCheckoutOperations.organizationId, resolved),
+          eq(fyhCheckoutOperations.attemptKey, key),
+          eq(fyhCheckoutOperations.status, 'processing'),
+        ),
+      );
+    return {
+      outcome: 'processing_failed',
+      invoiceId: '',
+      pricedGrandTotalPaise: 0,
+      amountPaidPaise: 0,
+      advancePaise: 0,
+      receivablePaise: 0,
+      correlationId: op.correlationId,
+      error: STALE_CHECKOUT_OPERATION_ERROR,
+    };
+  }
   if (op.status === 'committed' && op.invoiceId) {
     return {
       outcome: 'already_committed',
@@ -140,18 +245,28 @@ export async function executeBasketCheckout(
     if (prior?.invoiceId && prior.outcome === 'already_committed') {
       return prior;
     }
+    if (prior?.outcome === 'ambiguous' && prior.error) {
+      return { ...prior, correlationId };
+    }
     if (operationsTableReady) {
-      try {
-        await hairDb.insert(fyhCheckoutOperations).values({
-          ...writeDefaults,
-          attemptKey,
-          kind: 'basket_checkout',
-          status: 'processing',
+      const claimed = await claimCheckoutOperationLease({
+        attemptKey,
+        correlationId,
+        ctx,
+        writeDefaults,
+      });
+      if (claimed === 'in_progress') {
+        return {
+          invoiceId: '',
+          pricedGrandTotalPaise: 0,
+          amountPaidPaise: 0,
+          advancePaise: 0,
+          receivablePaise: 0,
+          outcome: 'ambiguous',
           correlationId,
-        });
-      } catch {
-        const again = await lookupBasketCheckoutByAttemptKey(attemptKey, ctx);
-        if (again?.invoiceId) return again;
+          error:
+            'Checkout is still in progress. Wait a moment, then verify Billing before retrying.',
+        };
       }
     }
   }

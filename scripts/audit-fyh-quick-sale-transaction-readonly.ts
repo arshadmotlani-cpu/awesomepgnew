@@ -5,6 +5,9 @@
  *   HAIR_DATABASE_URL=... npx tsx scripts/audit-fyh-quick-sale-transaction-readonly.ts \
  *     --customer-code CL00000134 --product "BIOTOP 911 MASK" --date 2026-10-11 --amount-paise 2790
  */
+import { loadAppEnv } from '@/src/lib/db/loadEnv';
+loadAppEnv();
+
 import { and, eq, gte, ilike, lt, sql } from 'drizzle-orm';
 import { hairDb } from '@/src/hair/db/client';
 import {
