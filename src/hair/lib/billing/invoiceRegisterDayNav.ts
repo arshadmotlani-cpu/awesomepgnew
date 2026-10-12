@@ -83,3 +83,43 @@ export function isStaleInvoiceRegisterNavigation(
 ): boolean {
   return Number(incoming.nav ?? '0') < Number(committed.nav ?? '0');
 }
+
+const REGISTER_FILTER_KEYS = [
+  'from',
+  'to',
+  'all',
+  'page',
+  'pageSize',
+  'q',
+  'paymentMode',
+  'status',
+] as const;
+
+/** Canonical query string for comparing register URLs (stable key order). */
+export function canonicalInvoiceRegisterQuery(params: Record<string, string>): string {
+  const entries: [string, string][] = [];
+  for (const key of REGISTER_FILTER_KEYS) {
+    const value = params[key];
+    if (value) entries.push([key, value]);
+  }
+  if (params.nav) entries.push(['nav', params.nav]);
+  entries.sort(([a], [b]) => a.localeCompare(b));
+  return new URLSearchParams(entries).toString();
+}
+
+/** True when server props match the committed optimistic navigation (nav caught up + same filters). */
+export function isInvoiceRegisterServerCaughtUp(
+  committed: Record<string, string>,
+  incoming: Record<string, string>,
+): boolean {
+  if (isStaleInvoiceRegisterNavigation(committed, incoming)) return false;
+  for (const key of REGISTER_FILTER_KEYS) {
+    if ((committed[key] ?? '') !== (incoming[key] ?? '')) return false;
+  }
+  return true;
+}
+
+export function invoiceRegisterHrefQuery(href: string): string {
+  const idx = href.indexOf('?');
+  return idx >= 0 ? href.slice(idx + 1) : '';
+}

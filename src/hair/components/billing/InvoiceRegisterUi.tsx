@@ -35,6 +35,8 @@ import {
 import { formatInrFromPaise } from '@/src/hair/lib/money';
 import {
   applyInvoiceRegisterSearchPatch,
+  canonicalInvoiceRegisterQuery,
+  invoiceRegisterHrefQuery,
   invoiceRegisterNavigateDay,
   invoiceRegisterSearchHref,
   isStaleInvoiceRegisterNavigation,
@@ -595,7 +597,14 @@ export function InvoiceRegisterUi({
   useEffect(() => {
     if (optimisticFilters && isStaleInvoiceRegisterNavigation(optimisticFilters, filters)) {
       committedRef.current = optimisticFilters;
-      router.replace(invoiceRegisterSearchHref(optimisticFilters));
+      const href = invoiceRegisterSearchHref(optimisticFilters);
+      const targetQuery = invoiceRegisterHrefQuery(href);
+      const currentQuery = canonicalInvoiceRegisterQuery(
+        Object.fromEntries(new URLSearchParams(window.location.search).entries()),
+      );
+      if (targetQuery !== currentQuery) {
+        router.replace(href);
+      }
       return;
     }
     committedRef.current = filters;

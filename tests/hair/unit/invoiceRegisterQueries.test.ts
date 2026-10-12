@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   applyInvoiceRegisterSearchPatch,
+  canonicalInvoiceRegisterQuery,
+  invoiceRegisterSearchHref,
   invoiceRegisterNavigateDay,
+  isInvoiceRegisterServerCaughtUp,
   isStaleInvoiceRegisterNavigation,
   shiftInvoiceRegisterDayIso,
 } from '@/src/hair/lib/billing/invoiceRegisterDayNav';
@@ -108,6 +111,39 @@ describe('invoiceRegister day navigation', () => {
     assert.equal(cleared.to, undefined);
     assert.equal(cleared.all, '1');
     assert.ok(Number(cleared.nav) > 3);
+  });
+
+  it('detects when the server has caught up to optimistic navigation', () => {
+    const optimistic = applyInvoiceRegisterSearchPatch(
+      { from: '2026-09-28', to: '2026-09-28' },
+      { from: '2026-09-27', to: '2026-09-27', page: '1' },
+    );
+    const staleServer = { from: '2026-09-28', to: '2026-09-28', nav: '1' };
+    assert.equal(isInvoiceRegisterServerCaughtUp(optimistic, staleServer), false);
+    const freshServer = {
+      from: optimistic.from,
+      to: optimistic.to,
+      page: '1',
+      nav: optimistic.nav,
+    };
+    assert.equal(isInvoiceRegisterServerCaughtUp(optimistic, freshServer), true);
+  });
+
+  it('canonicalizes register query strings for stable URL comparison', () => {
+    const href = invoiceRegisterSearchHref({
+      to: '2026-09-28',
+      from: '2026-09-28',
+      nav: '2',
+      page: '1',
+    });
+    const fromUrl = canonicalInvoiceRegisterQuery({
+      page: '1',
+      from: '2026-09-28',
+      to: '2026-09-28',
+      nav: '2',
+    });
+    assert.equal(fromUrl, 'from=2026-09-28&nav=2&page=1&to=2026-09-28');
+    assert.equal(fromUrl, canonicalInvoiceRegisterQuery(Object.fromEntries(new URLSearchParams(href.split('?')[1] ?? '').entries())));
   });
 
   it('does not let an older navigation overwrite the selected day', () => {
